@@ -111,7 +111,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)UhiDll;$(ProjectDir)MvCameraControl;$(ProjectDir)PortAudio;$(ProjectDir)MvCodeReaderCtrl;$(ProjectDir)libsndfile;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>MvCameraControl.lib;MvCodeReaderCtrl.lib;portaudio_x64.lib;libsndfile-1.lib;UhiDll.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>MvCameraControl.lib;MvCodeReaderCtrl.lib;portaudio_x64.lib;libsndfile-1.lib;UhiDll.lib;winhttp.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -138,6 +138,7 @@
     <ClInclude Include="equnit.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GPIO.h" />
+    <ClInclude Include="MessageQueue.h" />
     <ClInclude Include="peSwitch.h" />
     <ClInclude Include="product.h" />
     <ClInclude Include="product2btest.h" />

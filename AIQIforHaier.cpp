@@ -18,7 +18,9 @@
 #include <Windows.h>
 #include <cstdlib>
 #include <list>
-
+#include <WinHttp.h>
+#include <sstream>
+#include "MessageQueue.h"
 #pragma comment(lib, "ws2_32.lib")
 
 #define MAX_LOADSTRING 100
@@ -51,6 +53,115 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
 
+void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary)
+{
+	std::string textPartStart = "Content-Disposition: form-data; name=\"field2\"\r\n\r\n";
+	body.insert(body.end(), textPartStart.begin(), textPartStart.end());
+
+	std::string textData = text;
+	body.insert(body.end(), textData.begin(), textData.end());
+
+	std::string textPartEnd = "\r\n--" + boundary + "--\r\n";
+	body.insert(body.end(), textPartEnd.begin(), textPartEnd.end());
+
+	return;
+}
+
+void HttpPost(message &msg)
+{
+	HINTERNET hSession=NULL, hConnect=NULL, hRequest=NULL;
+	BOOL  bResults = FALSE;
+	DWORD dwSize = 0;
+	DWORD dwDownloaded = 0;
+	LPSTR pszOutBuffer;
+
+	// Use WinHttpOpen to obtain a session handle.
+	hSession = WinHttpOpen(L"WinHTTP Example/1.0",
+		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+		WINHTTP_NO_PROXY_NAME,
+		WINHTTP_NO_PROXY_BYPASS, 0);
+
+	// Specify an HTTP server.
+	if (hSession)
+		hConnect = WinHttpConnect(hSession, L"http://172.31.185.62:10001",
+			INTERNET_DEFAULT_HTTP_PORT, 0);
+
+	// Create an HTTP request handle.
+	if (hConnect)
+		hRequest = WinHttpOpenRequest(hConnect, L"POST",
+			L"/inspection/upload",
+			NULL, WINHTTP_NO_REFERER,
+			WINHTTP_DEFAULT_ACCEPT_TYPES,
+			0);
+
+	// Define boundary and headers
+	std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+	std::wstring headers = L"Content-Type:multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
+
+    //Define body
+	std::vector<char> body;
+
+	// Add picture
+	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"field1\"\r\n\r\n";
+	body.insert(body.end(), partStart.begin(), partStart.end());
+
+	std::vector<char> binaryData;
+	for (int i = 0; i < msg.imageLen; i++)
+	{
+		binaryData.push_back(msg.imageBuffer[i]);
+	}
+	body.insert(body.end(), binaryData.begin(), binaryData.end());
+
+	std::string partEnd = "\r\n--" + boundary + "--\r\n";
+	body.insert(body.end(), partEnd.begin(), partEnd.end());
+
+	std::stringstream ss;
+	std::string sampleTime;
+	ss << msg.sampleTime;
+	ss >> sampleTime;
+
+	// Add text part
+	AddTextPart(body, msg.pipelineCode, boundary);
+	AddTextPart(body, msg.processesCode, boundary);
+	AddTextPart(body, msg.processesTemplateCode, boundary);
+	AddTextPart(body, msg.productSn, boundary);
+	AddTextPart(body, msg.productSnCode, boundary);
+	AddTextPart(body, msg.productSnModel, boundary);
+	AddTextPart(body, sampleTime, boundary);
+
+	// Send a request.
+	if (hRequest)
+		bResults = WinHttpSendRequest(hRequest,
+			headers.c_str(),
+			headers.length(), static_cast<LPVOID>(body.data()),
+			body.size(),
+			body.size(), 0);
+
+	// End the request.
+	if (bResults)
+		bResults = WinHttpReceiveResponse(hRequest, NULL);
+
+	// Close any open handles.
+	if (hRequest) WinHttpCloseHandle(hRequest);
+	if (hConnect) WinHttpCloseHandle(hConnect);
+	if (hSession) WinHttpCloseHandle(hSession);
+
+	return;
+}
+
+DWORD HttpPostThread(LPVOID lpParam)
+{
+	struct message msg;
+
+	while (true)
+	{
+		Singleton::instance().wait(msg);
+		HttpPost(msg);
+	}
+
+	return 0;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_opt_ HINSTANCE hPrevInstance,
 	_In_ LPWSTR    lpCmdLine,
@@ -75,6 +186,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	{
 		return FALSE;
 	}
+
+	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
 
@@ -1153,7 +1266,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
 		devicecm->StartGrabbing();
-		devicecm->GetImage(path);
+		devicecm->GetImage(path, unit);
 		devicecm->StopGrabbing();
 		devicecm->UnLock();
 		break;

@@ -6,6 +6,10 @@
 #include <cstdlib>
 #include <chrono>
 #include <thread>
+#include "MessageQueue.h"
+#include "product.h"
+
+extern std::string pipelineCode;
 
 MV_CC_DEVICE_INFO* Camera::GetCameraByIpAddress() {
 	if (m_isGot) {
@@ -350,7 +354,7 @@ void Camera::UnLock() {
 	m_mutex.unlock();
 }
 
-bool Camera::GetImage(const std::string& path) {
+bool Camera::GetImage(const std::string& path, void* args) {
 	if (!m_isGrabbing) {
 		return false;
 	}
@@ -402,9 +406,22 @@ bool Camera::GetImage(const std::string& path) {
 		if (nRet != MV_OK) {
 			printf("MV_CC_SaveImageEx3 fail! nRet [0x%x]\n", nRet);
 			delete[] to_jpeg.pImageBuffer; // 释放
+			MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 			return false;
 		}
 
+		ProcessUnit* unit = (ProcessUnit*)args;
+		struct message msg;
+		msg.pipelineCode = pipelineCode;
+		msg.processesCode = unit->processesCode;
+		msg.processesTemplateCode = unit->processesTemplateCode;
+		msg.productSn = unit->productSn;
+		msg.productSnCode = unit->productSnCode;
+		msg.productSnModel = unit->productSnModel;
+		msg.imageBuffer = to_jpeg.pImageBuffer;
+		msg.imageLen = to_jpeg.nImageLen;
+		Singleton::instance().push(msg);
+/*
 		//将图片从内存保存到本地中
 		MV_SAVE_IMAGE_TO_FILE_PARAM_EX file;
 		file.nWidth = to_jpeg.nWidth;
@@ -441,9 +458,9 @@ bool Camera::GetImage(const std::string& path) {
 			delete[] to_jpeg.pImageBuffer;
 			return false;
 		}
-
+*/
 		// 释放
-		delete[] to_jpeg.pImageBuffer;
+		//delete[] to_jpeg.pImageBuffer;
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
 			printf("Free Image Buffer fail! nRet [0x%x]\n", nRet);

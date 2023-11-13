@@ -57,6 +57,9 @@
     <ClInclude Include="SerialCommunication.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="MessageQueue.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AIQIforHaier.cpp">
