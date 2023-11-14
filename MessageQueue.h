@@ -3,6 +3,11 @@
 #include <mutex>
 #include <condition_variable>
 
+enum MSG_TYPE_E {
+	MSG_TYPE_PICTURE,
+	MSG_TYPE_TEXT
+};
+
 struct message {
 	std::string pipelineCode;
 	std::string processesCode;
@@ -11,8 +16,10 @@ struct message {
 	std::string productSnCode;
 	std::string productSnModel;
 	double sampleTime;
+	MSG_TYPE_E type;
 	unsigned char* imageBuffer;
 	unsigned int imageLen;
+	std::string text;
 };
 
 class MessageQueue {

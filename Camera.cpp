@@ -418,6 +418,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		msg.productSn = unit->productSn;
 		msg.productSnCode = unit->productSnCode;
 		msg.productSnModel = unit->productSnModel;
+		msg.type = MSG_TYPE_PICTURE;
 		msg.imageBuffer = to_jpeg.pImageBuffer;
 		msg.imageLen = to_jpeg.nImageLen;
 		Singleton::instance().push(msg);

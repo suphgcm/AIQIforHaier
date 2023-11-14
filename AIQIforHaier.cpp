@@ -68,6 +68,25 @@ void AddTextPart(std::vector<char> &body, std::string &text, std::string &bounda
 	return;
 }
 
+void AddBinaryPart(std::vector<char>& body, unsigned char* imageBuffer, unsigned int imageLen, std::string& boundary, std::string imageName)
+{
+	// Add picture
+	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + imageName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
+	body.insert(body.end(), partStart.begin(), partStart.end());
+
+	std::vector<char> binaryData;
+	for (int i = 0; i < imageLen; i++)
+	{
+		binaryData.push_back(imageBuffer[i]);
+	}
+	body.insert(body.end(), binaryData.begin(), binaryData.end());
+
+	std::string partEnd = "\r\n--" + boundary + "\r\n";
+	body.insert(body.end(), partEnd.begin(), partEnd.end());
+
+	return;
+}
+
 void HttpPost(message &msg)
 {
 	HINTERNET hSession=NULL, hConnect=NULL, hRequest=NULL;
@@ -107,19 +126,14 @@ void HttpPost(message &msg)
     //Define body
 	std::vector<char> body;
 
-	// Add picture
-	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\""+imageName+"\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
-	body.insert(body.end(), partStart.begin(), partStart.end());
-
-	std::vector<char> binaryData;
-	for (int i = 0; i < msg.imageLen; i++)
-	{
-		binaryData.push_back(msg.imageBuffer[i]);
+	if (msg.type == MSG_TYPE_PICTURE) {
+		// Add picture
+		AddBinaryPart(body, msg.imageBuffer, msg.imageLen, boundary, imageName);
 	}
-	body.insert(body.end(), binaryData.begin(), binaryData.end());
-
-	std::string partEnd = "\r\n--" + boundary + "\r\n";
-	body.insert(body.end(), partEnd.begin(), partEnd.end());
+	else {
+		// Add TEXT
+		AddTextPart(body, msg.text, boundary, "content");
+	}
 
 //	std::stringstream ss;
     std::string sampleTime = "123456789";
@@ -168,6 +182,11 @@ DWORD HttpPostThread(LPVOID lpParam)
 	{
 		Singleton::instance().wait(msg);
 		HttpPost(msg);
+
+		if (msg.type == MSG_TYPE_PICTURE)
+		{
+			delete[] msg.imageBuffer;
+		}
 	}
 
 	return 0;
@@ -199,6 +218,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
+
+//	StartSelfTesting();
+//	GetConfig();
+//	f_QATESTING = true;
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
 
@@ -401,6 +424,7 @@ DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
 
 // 各个按钮对应的函数
 void StartSelfTesting(HWND hWnd) {
+//	HWND hWnd = FindWindow(NULL, szTitle);
 	HMENU hMenu = GetMenu(hWnd);
 	if (f_SELFTESTING == false) {
 		CheckMenuItem(hMenu, ID_SELFTESTING, MF_CHECKED); // 打勾
@@ -704,6 +728,7 @@ void PrintDevices() {
 
 // 处理得到 productMap
 void GetConfig(HWND hWnd) {
+//	HWND hWnd = FindWindow(NULL, szTitle);
 	HMENU hMenu = GetMenu(hWnd);
 	if (f_GETCFG) {
 		f_GETCFG = !f_GETCFG;
@@ -1290,11 +1315,21 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		int crRet = deviceCR->ReadCode(codeRes);
 		deviceCR->StopGrabbing();
 
-		args["content"] = codeRes;
-		std::ofstream file(path + "\\requestArgs.json");
-		file << args.dump(4) << std::endl;
-		file.close();
+//		args["content"] = codeRes;
+//		std::ofstream file(path + "\\requestArgs.json");
+//		file << args.dump(4) << std::endl;
+//		file.close();
 
+		struct message msg;
+		msg.pipelineCode = pipelineCode;
+		msg.processesCode = unit->processesCode;
+		msg.processesTemplateCode = unit->processesTemplateCode;
+		msg.productSn = unit->productSn;
+		msg.productSnCode = unit->productSnCode;
+		msg.productSnModel = unit->productSnModel;
+		msg.type = MSG_TYPE_TEXT;
+		msg.text = codeRes[0];
+		Singleton::instance().push(msg);
 		break;
 	}
 	case 4: { // Speaker
