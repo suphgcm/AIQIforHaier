@@ -121,10 +121,10 @@ void HttpPost(message &msg)
 	std::string partEnd = "\r\n--" + boundary + "\r\n";
 	body.insert(body.end(), partEnd.begin(), partEnd.end());
 
-	std::stringstream ss;
-	std::string sampleTime;
-	ss << msg.sampleTime;
-	ss >> sampleTime;
+//	std::stringstream ss;
+    std::string sampleTime = "123456789";
+//	ss << msg.sampleTime;
+//	ss >> sampleTime;
 
 	// Add text part
 	AddTextPart(body, msg.pipelineCode, boundary, "pipelineCode");
