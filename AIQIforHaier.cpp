@@ -129,7 +129,7 @@ void HttpPost(message &msg)
 	// Add text part
 	AddTextPart(body, msg.pipelineCode, boundary, "pipelineCode");
 	AddTextPart(body, msg.processesCode, boundary, "processesCode");
-	AddTextPart(body, msg.processesTemplateCode, boundary, "processTemplateCode");
+	AddTextPart(body, msg.processesTemplateCode, boundary, "processesTemplateCode");
 	AddTextPart(body, msg.productSn, boundary, "productSn");
 	AddTextPart(body, msg.productSnCode, boundary, "productSnCode");
 	AddTextPart(body, msg.productSnModel, boundary, "productSnModel");
