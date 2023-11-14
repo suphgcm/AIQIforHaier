@@ -108,7 +108,7 @@ void HttpPost(message &msg)
 	std::vector<char> body;
 
 	// Add picture
-	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\""+imageName+".jpeg\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
+	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\""+imageName+"\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
 	std::vector<char> binaryData;
@@ -134,6 +134,11 @@ void HttpPost(message &msg)
 	AddTextPart(body, msg.productSnCode, boundary, "productSnCode");
 	AddTextPart(body, msg.productSnModel, boundary, "productSnModel");
 	AddTextPart(body, sampleTime, boundary, "sampleTime");
+
+	body.pop_back();
+	body.pop_back();
+	std::string End = "--\r\n";
+	body.insert(body.end(), End.begin(), End.end());
 
 	// Send a request.
 	if (hRequest)
