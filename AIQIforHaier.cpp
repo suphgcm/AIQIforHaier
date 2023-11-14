@@ -54,15 +54,15 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
 
-void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary)
+void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary, std::string name)
 {
-	std::string textPartStart = "Content-Disposition: form-data; name=\"field2\"\r\n\r\n";
+	std::string textPartStart = "Content-Disposition: form-data; name=\""+name+"\"\r\nContent-Type:text-plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
 	body.insert(body.end(), textPartStart.begin(), textPartStart.end());
 
 	std::string textData = text;
 	body.insert(body.end(), textData.begin(), textData.end());
 
-	std::string textPartEnd = "\r\n--" + boundary + "--\r\n";
+	std::string textPartEnd = "\r\n--" + boundary + "\r\n";
 	body.insert(body.end(), textPartEnd.begin(), textPartEnd.end());
 
 	return;
@@ -99,11 +99,16 @@ void HttpPost(message &msg)
 	std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
 	std::wstring headers = L"Content-Type:multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
 
+	auto now = std::chrono::system_clock::now();
+	auto duration = now.time_since_epoch();
+	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+	std::string imageName = std::to_string(milliseconds) + ".jpeg";
+
     //Define body
 	std::vector<char> body;
 
 	// Add picture
-	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"field1\"\r\n\r\n";
+	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\""+imageName+".jpeg\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
 	std::vector<char> binaryData;
@@ -113,7 +118,7 @@ void HttpPost(message &msg)
 	}
 	body.insert(body.end(), binaryData.begin(), binaryData.end());
 
-	std::string partEnd = "\r\n--" + boundary + "--\r\n";
+	std::string partEnd = "\r\n--" + boundary + "\r\n";
 	body.insert(body.end(), partEnd.begin(), partEnd.end());
 
 	std::stringstream ss;
@@ -122,13 +127,13 @@ void HttpPost(message &msg)
 	ss >> sampleTime;
 
 	// Add text part
-	AddTextPart(body, msg.pipelineCode, boundary);
-	AddTextPart(body, msg.processesCode, boundary);
-	AddTextPart(body, msg.processesTemplateCode, boundary);
-	AddTextPart(body, msg.productSn, boundary);
-	AddTextPart(body, msg.productSnCode, boundary);
-	AddTextPart(body, msg.productSnModel, boundary);
-	AddTextPart(body, sampleTime, boundary);
+	AddTextPart(body, msg.pipelineCode, boundary, "pipelineCode");
+	AddTextPart(body, msg.processesCode, boundary, "processesCode");
+	AddTextPart(body, msg.processesTemplateCode, boundary, "processTemplateCode");
+	AddTextPart(body, msg.productSn, boundary, "productSn");
+	AddTextPart(body, msg.productSnCode, boundary, "productSnCode");
+	AddTextPart(body, msg.productSnModel, boundary, "productSnModel");
+	AddTextPart(body, sampleTime, boundary, "sampleTime");
 
 	// Send a request.
 	if (hRequest)
