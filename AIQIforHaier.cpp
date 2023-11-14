@@ -24,6 +24,7 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #define MAX_LOADSTRING 100
+#define HTTP_POST_PORT 10001
 
 std::mutex mtx[8];
 bool isPinTriggered[8]; // GPIO 针脚是否触发状态
@@ -83,8 +84,8 @@ void HttpPost(message &msg)
 
 	// Specify an HTTP server.
 	if (hSession)
-		hConnect = WinHttpConnect(hSession, L"http://172.31.185.62:10001",
-			INTERNET_DEFAULT_HTTP_PORT, 0);
+		hConnect = WinHttpConnect(hSession, L"192.168.0.189",
+			HTTP_POST_PORT, 0);
 
 	// Create an HTTP request handle.
 	if (hConnect)
