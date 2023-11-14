@@ -132,6 +132,8 @@ void HttpPost(message &msg)
 	}
 	else {
 		// Add TEXT
+		std::string partStart = "--" + boundary + "\r\n";
+		body.insert(body.end(), partStart.begin(), partStart.end());
 		AddTextPart(body, msg.text, boundary, "content");
 	}
 
@@ -1319,17 +1321,18 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 //		std::ofstream file(path + "\\requestArgs.json");
 //		file << args.dump(4) << std::endl;
 //		file.close();
-
-		struct message msg;
-		msg.pipelineCode = pipelineCode;
-		msg.processesCode = unit->processesCode;
-		msg.processesTemplateCode = unit->processesTemplateCode;
-		msg.productSn = unit->productSn;
-		msg.productSnCode = unit->productSnCode;
-		msg.productSnModel = unit->productSnModel;
-		msg.type = MSG_TYPE_TEXT;
-		msg.text = codeRes[0];
-		Singleton::instance().push(msg);
+		if (!codeRes.empty()) {
+			struct message msg;
+			msg.pipelineCode = pipelineCode;
+			msg.processesCode = unit->processesCode;
+			msg.processesTemplateCode = unit->processesTemplateCode;
+			msg.productSn = unit->productSn;
+			msg.productSnCode = unit->productSnCode;
+			msg.productSnModel = unit->productSnModel;
+			msg.type = MSG_TYPE_TEXT;
+			msg.text = codeRes[0];
+			Singleton::instance().push(msg);
+		}
 		break;
 	}
 	case 4: { // Speaker
