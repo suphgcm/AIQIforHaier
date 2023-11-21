@@ -25,9 +25,9 @@ bool f_QATESTING = false;
 bool f_GETCFG = false;
 bool DeviceConfigued = false;
 
-void StartSelfTesting(/*HWND hWnd*/);
+void StartSelfTesting(HWND hWnd);
 void PrintDevices();
-void GetConfig(/*HWND hWnd*/);
+void GetConfig(HWND hWnd);
 
 void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
