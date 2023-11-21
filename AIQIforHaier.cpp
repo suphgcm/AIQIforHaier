@@ -404,7 +404,7 @@ void AppendLog(LPCWSTR text) {
 }
 
 DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
-	const int max_chars = 6000;
+	const int max_chars = 600000;
 
 	while (true) {
 		//Get the length of the text in edit control
@@ -414,7 +414,7 @@ DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
 			SetWindowText(hEdit, TEXT(""));
 		}
 
-		std::this_thread::sleep_for(std::chrono::seconds(5));
+		std::this_thread::sleep_for(std::chrono::seconds(30));
 	}
 
 	return 0;
@@ -1055,6 +1055,10 @@ void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	//}
 	//std::string productSnCode = productSn.substr(0, 9);
 
+	auto now = std::chrono::system_clock::now();
+	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long long timeMillisCount = timeMillis.count();
+
 	// 得到产品序列号前9位
 	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
 	std::vector<std::string> codereaderresults;
@@ -1095,6 +1099,12 @@ void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
 		return;
 	}
+
+	auto now1 = std::chrono::system_clock::now();
+	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+	long long timeMillisCount1 = timeMillis1.count();
+	std::string Log = "Scancode time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
+	AppendLog(StringToLPCWSTR(Log));
 
 	//gpioPin = 3;
 	//std::string productSn = "AABMZD00001E6PB1AVNP";
