@@ -355,9 +355,9 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 
 		for (unsigned int i = 0; i < stBcrResult->nCodeNum; i++) {
 			printf("Get CodeInfo: CodeNum[%d] CodeEx[%s]\n", i, stBcrResult->stBcrInfoEx2[i].chCode);
-			if (std::strlen(stBcrResult->stBcrInfoEx2[i].chCode) > 9) {
+//			if (std::strlen(stBcrResult->stBcrInfoEx2[i].chCode) > 9) {
 				codes.push_back(stBcrResult->stBcrInfoEx2[i].chCode); // 参数为 const char * 类型字符串
-			}
+//			}
 		}
 
 		if (!codes.empty()) {

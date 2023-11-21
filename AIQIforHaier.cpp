@@ -1223,7 +1223,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) { //每个pin绑定一个对应�
 		if ((runla - start) >= tmpFind->laterncy) {
 			tmpFind->productSn = myp2btest->productSn;
 
-			// 建立目录和配置文件
+/*			// 建立目录和配置文件
 			std::string path = projDir.c_str();
 			path += "\\" + pipelineCode + "\\" + tmpFind->productSnModel + "\\" + tmpFind->productSn + "\\" + tmpFind->processesCode;
 			bool mkdirRet = CreateRecursiveDirectory(path);
@@ -1246,7 +1246,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) { //每个pin绑定一个对应�
 			args["sampleTime"] = 111;
 			std::ofstream file(path + "\\requestArgs.json");
 			file << args;
-
+*/
 			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, tmpFind, 0, NULL);
 			handles.push_back(hUnitWork);
 			tmpFind = tmpFind->nextunit;
@@ -1298,6 +1298,9 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	args["productSnModel"] = unit->productSnModel;
 	args["sampleTime"] = 111;
 
+	std::string logStr = "device type:" + unit->deviceTypeCode + " device code:" + unit->deviceCode + " called!\n";
+	AppendLog(StringToLPCWSTR(logStr));
+
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
 	case 2: { // Camera
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
@@ -1316,23 +1319,29 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		std::vector<std::string> codeRes;
 		int crRet = deviceCR->ReadCode(codeRes);
 		deviceCR->StopGrabbing();
-
+		std::string logStr = "device code:" + unit->deviceCode + " called ret:"+ std::to_string(crRet) + " code number: " + std::to_string(codeRes.size()) + "\n";
+		AppendLog(StringToLPCWSTR(logStr));
 //		args["content"] = codeRes;
 //		std::ofstream file(path + "\\requestArgs.json");
 //		file << args.dump(4) << std::endl;
 //		file.close();
+
+		struct message msg;
+		msg.pipelineCode = pipelineCode;
+		msg.processesCode = unit->processesCode;
+		msg.processesTemplateCode = unit->processesTemplateCode;
+		msg.productSn = unit->productSn;
+		msg.productSnCode = unit->productSnCode;
+		msg.productSnModel = unit->productSnModel;
+		msg.type = MSG_TYPE_TEXT;
 		if (!codeRes.empty()) {
-			struct message msg;
-			msg.pipelineCode = pipelineCode;
-			msg.processesCode = unit->processesCode;
-			msg.processesTemplateCode = unit->processesTemplateCode;
-			msg.productSn = unit->productSn;
-			msg.productSnCode = unit->productSnCode;
-			msg.productSnModel = unit->productSnModel;
-			msg.type = MSG_TYPE_TEXT;
 			msg.text = codeRes[0];
-			Singleton::instance().push(msg);
 		}
+		else {
+			msg.text = "";
+		}
+		Singleton::instance().push(msg);
+
 		break;
 	}
 	case 4: { // Speaker
