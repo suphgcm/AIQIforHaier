@@ -102,7 +102,7 @@ static int recordCallback(const void* inputBuffer, void* outputBuffer, unsigned 
 		data->outputFrameoffset = data->outputFrameoffset + framesPerBuffer * (AudioEquipment::CHANNEL_COUNT * AudioEquipment::BIT_DEPTH / 8);
 	}
 	else {
-		(void)outputBuffer;
+		memset(outputBuffer, 0, framesPerBuffer * (AudioEquipment::CHANNEL_COUNT * AudioEquipment::BIT_DEPTH / 8));
 	}
 
 	(void)timeInfo;
