@@ -29,7 +29,8 @@ void StartSelfTesting(HWND hWnd);
 void PrintDevices();
 void GetConfig(HWND hWnd);
 
-void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+DWORD __stdcall TriggerOn(LPVOID lpParam);
+//void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 void SetPostFlag(ProcessUnit* processUnitListHead);
