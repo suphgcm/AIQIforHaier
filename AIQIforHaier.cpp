@@ -365,7 +365,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_GPIO_ON:
 		//TriggerOn(hWnd, message, wParam, lParam);
-		hdw = CreateThread(NULL, 0, TriggerOn, &lParam, 0, NULL);
+		hdw = CreateThread(NULL, 0, TriggerOn, (LPVOID)lParam, 0, NULL);
 		break;
 	case WM_GPIO_OFF:
 		TriggerOff(hWnd, message, wParam, lParam);
@@ -996,7 +996,7 @@ void GetConfig(HWND hWnd) {
 
 //void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 DWORD __stdcall TriggerOn(LPVOID lpParam) {
-	int gpioPin = *static_cast<int*>(lpParam);
+	int gpioPin = (int)lpParam;
     std::string triggerLog = "*lpParam = " + std::to_string(gpioPin) + "\n";
 //	int gpioPin = static_cast<int>(lParam);
 //	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
