@@ -364,8 +364,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		PostQuitMessage(0);
 		break;
 	case WM_GPIO_ON:
-		//TriggerOn(hWnd, message, wParam, lParam);
-		hdw = CreateThread(NULL, 0, TriggerOn, (LPVOID)lParam, 0, NULL);
+		TriggerOn(hWnd, message, wParam, lParam);
 		break;
 	case WM_GPIO_OFF:
 		TriggerOff(hWnd, message, wParam, lParam);
@@ -994,28 +993,129 @@ void GetConfig(HWND hWnd) {
 	}
 }
 
-//void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-DWORD __stdcall TriggerOn(LPVOID lpParam) {
+DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
+	CloseHandle(GetCurrentThread());
 	int gpioPin = (int)lpParam;
-    std::string triggerLog = "*lpParam = " + std::to_string(gpioPin) + "\n";
-//	int gpioPin = static_cast<int>(lParam);
-//	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
-//		+ ", lParam = " + std::to_string(gpioPin) + "\n";
-//    std::string triggerLog = "lParam = " + std::to_string(gpioPin) + "\n";
+	std::string triggerLog = "*lpParam = " + std::to_string(gpioPin) + "\n";
+
+	auto now1 = std::chrono::system_clock::now();
+	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+	long long timeMillisCount1 = timeMillis1.count();
+
+	// 得到产品序列号前9位
+	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
+	std::vector<std::string> codereaderresults;
+	for (std::string codereader : vcodereaders) {
+		auto it = deviceMap.find(codereader);
+		if (it == deviceMap.end()) {
+			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
+			AppendLog(_T("光电开关故障\n"));
+			//mtx[gpioPin].unlock();
+			//return;
+			return 0;
+		}
+		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
+		std::string logStr = "CodeReader " + CR->e_deviceCode + " called!" + std::to_string(CR->GetAcquisitionBurstFrameCount()) + "frames\n";
+		AppendLog(StringToLPCWSTR(logStr));
+		CR->StartGrabbing();
+		std::vector<std::string> results;
+		int crRet = CR->ReadCode(results);
+		CR->StopGrabbing();
+		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
+		logStr = "CodeReader ret: " + std::to_string(crRet) + "\n";
+		AppendLog(StringToLPCWSTR(logStr));
+	}
+
+	if (codereaderresults.empty()) {
+		AppendLog(_T("扫码结果为空！\n"));
+//		mtx[gpioPin].unlock();
+		//return;
+		return 0;
+	}
+	std::string productSn = "";
+	for (size_t i = 0; i < codereaderresults.size(); i++) {
+		std::string tmpr = codereaderresults[i];
+		// 取最长
+		if (tmpr.size() > productSn.size()) {
+			productSn = tmpr;
+		}
+	}
+	if (productSn.length() < 13) {
+		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
+		//return;
+		return 0;
+	}
+
+	auto now2 = std::chrono::system_clock::now();
+	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+	long long timeMillisCount2 = timeMillis2.count();
+	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
+	AppendLog(StringToLPCWSTR(Log));
+
+	//gpioPin = 3;
+	//std::string productSn = "AABMZD00001E6PB1AVNP";
+	std::string productSnCode = productSn.substr(0, 9);
+
+	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
+	auto productItem = productMap.find(productSnCode);
+	if (productItem == productMap.end()) {
+		std::string logStr = "Product " + productSnCode + " does not exist!\n";
+		AppendLog(StringToLPCWSTR(logStr));
+//		mtx[gpioPin].unlock();
+		//return;
+		return 0;
+	}
+
+	std::string logStr = "Product " + productSn + " scanned!\n";
+	AppendLog(StringToLPCWSTR(logStr));
+
+	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
+	auto now = std::chrono::system_clock::now();
+	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long start = duration_in_milliseconds.count();
+	//product2btest* p2t = new product2btest(gpioPin, productSn, head, start);
+
+	auto it = map2bTest.find(gpioPin);
+	if (it == map2bTest.end()) {
+		AppendLog(L"map2bTest init error!");
+//		mtx[gpioPin].unlock();
+		//return;
+		return 0;
+	}
+	it->second->pinNumber = gpioPin;
+	it->second->productSn = productSn;
+	it->second->productSnCode = productSnCode;
+	it->second->processUnitListHead = head;
+	//processUnitListFind(listHead->nextunit)
+	//	lastTestTimestamp(timestamp)
+	it->second->shotTimestamp = start;
+
+	//map2bTest.insert(std::make_pair(gpioPin, p2t));
+
+	//hMainWork[gpioPin] = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
+	HANDLE hdw = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
+	//allMainWorkHandles.push_back(hMainWork[gpioPin]);
+	std::string logString = std::to_string(__LINE__) + ", trigger on, handle count: " + std::to_string(allMainWorkHandles.size()) + "\n";
+	return 0;
+}
+
+void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+	int gpioPin = static_cast<int>(lParam);
+	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
+		+ ", lParam = " + std::to_string(gpioPin) + "\n";
+
 	AppendLog(StringToLPCWSTR(triggerLog));
 
 	if (!f_QATESTING) {
 		AppendLog(_T("f_QATESTING is false!\n"));//pin 脚触发
-		//return;
-		return 0;
+		return;
 	}
 
 	// 进行串口通信
 	if (gpioPin == remoteCtrlPin) {
 		//CreateThread(NULL, 0, SerialCommunicationThread, NULL, 0, NULL);
 		
-		//return;
-		return 0;
+		return;
 	}
 
 	// 1. triggerMap 把引脚和扫码枪对应
@@ -1026,8 +1126,7 @@ DWORD __stdcall TriggerOn(LPVOID lpParam) {
 	if (!mtx[gpioPin].try_lock()) {
 		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "  try lock fail\n";
 		AppendLog(StringToLPCWSTR(loglockStr));
-		//return;
-		return 0;
+		return;
 	}
 	loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "   locked \n";
 	AppendLog(StringToLPCWSTR(loglockStr));
@@ -1035,10 +1134,13 @@ DWORD __stdcall TriggerOn(LPVOID lpParam) {
 		std::string logStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + " try trigger error\n";
 		AppendLog(StringToLPCWSTR(logStr));
 		mtx[gpioPin].unlock();
-		//return;
-		return 0;
+		return;
 	}
 	isPinTriggered[gpioPin] = true;
+
+	HANDLE hdw = CreateThread(NULL, 0, TriggerOnXXX, (LPVOID)gpioPin, 0, NULL);
+	return;
+
 	//// 得到产品序列号前9位
 	//auto it = deviceMap.find(triggerMap[gpioPin]);
 	//if (it == deviceMap.end()) {
@@ -1064,7 +1166,7 @@ DWORD __stdcall TriggerOn(LPVOID lpParam) {
 	//	return;
 	//}
 	//std::string productSnCode = productSn.substr(0, 9);
-
+/*
 	auto now1 = std::chrono::system_clock::now();
 	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
 	long long timeMillisCount1 = timeMillis1.count();
@@ -1163,6 +1265,7 @@ DWORD __stdcall TriggerOn(LPVOID lpParam) {
 	HANDLE hdw = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
 	//allMainWorkHandles.push_back(hMainWork[gpioPin]);
 	std::string logString = std::to_string(__LINE__) + ", trigger on, handle count: " + std::to_string(allMainWorkHandles.size()) + "\n";
+*/
 	/*AppendLog(StringToLPCWSTR(logString));
 	loglockStr = std::to_string(__LINE__) + ", GPIO PIN "  + " before wait";
 	AppendLog(StringToLPCWSTR(loglockStr));
@@ -1177,7 +1280,6 @@ DWORD __stdcall TriggerOn(LPVOID lpParam) {
 	mtx[gpioPin].unlock();
 	loglockStr = std::to_string(__LINE__) + ", GPIO PIN "  + "   unlocked \n";
 	AppendLog(StringToLPCWSTR(loglockStr));*/
-	return 0;
 }
 
 DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
