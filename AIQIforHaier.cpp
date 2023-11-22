@@ -404,7 +404,7 @@ void AppendLog(LPCWSTR text) {
 }
 
 DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
-	const int max_chars = 600000;
+	const int max_chars = 6000;
 
 	while (true) {
 		//Get the length of the text in edit control
@@ -414,7 +414,7 @@ DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
 			SetWindowText(hEdit, TEXT(""));
 		}
 
-		std::this_thread::sleep_for(std::chrono::seconds(30));
+		std::this_thread::sleep_for(std::chrono::seconds(5));
 	}
 
 	return 0;
@@ -991,7 +991,7 @@ void GetConfig(HWND hWnd) {
 		return;
 	}
 }
-
+long long timeMillisCountTriger;
 void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	int gpioPin = static_cast<int>(lParam);
 	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
@@ -1055,9 +1055,9 @@ void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	//}
 	//std::string productSnCode = productSn.substr(0, 9);
 
-	auto now = std::chrono::system_clock::now();
-	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long long timeMillisCount = timeMillis.count();
+	auto now1 = std::chrono::system_clock::now();
+	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+	long long timeMillisCount1 = timeMillis1.count();
 
 	// 得到产品序列号前9位
 	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
@@ -1100,10 +1100,10 @@ void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 		return;
 	}
 
-	auto now1 = std::chrono::system_clock::now();
-	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long long timeMillisCount1 = timeMillis1.count();
-	std::string Log = "Scancode time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
+	auto now2 = std::chrono::system_clock::now();
+	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+	long long timeMillisCount2 = timeMillis2.count();
+	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
 	AppendLog(StringToLPCWSTR(Log));
 
 	//gpioPin = 3;
@@ -1302,7 +1302,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	args["productSnModel"] = unit->productSnModel;
 	args["sampleTime"] = 111;
 
-	std::string logStr = "device type:" + unit->deviceTypeCode + " device code:" + unit->deviceCode + " called!\n";
+	std::string logStr = "device type:" + unit->deviceTypeCode + ", device code:" + unit->deviceCode + " called!\n";
 	AppendLog(StringToLPCWSTR(logStr));
 
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
@@ -1323,7 +1323,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		std::vector<std::string> codeRes;
 		int crRet = deviceCR->ReadCode(codeRes);
 		deviceCR->StopGrabbing();
-		std::string logStr = "device code:" + unit->deviceCode + " called ret:"+ std::to_string(crRet) + " code number: " + std::to_string(codeRes.size()) + "\n";
+		std::string logStr = "device code:" + unit->deviceCode + ", called ret:"+ std::to_string(crRet) + ", code count: " + std::to_string(codeRes.size()) + "\n";
 		AppendLog(StringToLPCWSTR(logStr));
 //		args["content"] = codeRes;
 //		std::ofstream file(path + "\\requestArgs.json");
