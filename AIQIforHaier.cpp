@@ -993,7 +993,7 @@ void GetConfig(HWND hWnd) {
 	}
 }
 
-DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
+DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	CloseHandle(GetCurrentThread());
 	int gpioPin = (int)lpParam;
 	std::string triggerLog = "*lpParam = " + std::to_string(gpioPin) + "\n";
@@ -1010,8 +1010,6 @@ DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
 		if (it == deviceMap.end()) {
 			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
 			AppendLog(_T("光电开关故障\n"));
-			//mtx[gpioPin].unlock();
-			//return;
 			return 0;
 		}
 		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
@@ -1028,8 +1026,6 @@ DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
 
 	if (codereaderresults.empty()) {
 		AppendLog(_T("扫码结果为空！\n"));
-//		mtx[gpioPin].unlock();
-		//return;
 		return 0;
 	}
 	std::string productSn = "";
@@ -1042,7 +1038,6 @@ DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
 	}
 	if (productSn.length() < 13) {
 		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
-		//return;
 		return 0;
 	}
 
@@ -1052,8 +1047,6 @@ DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
 	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
 	AppendLog(StringToLPCWSTR(Log));
 
-	//gpioPin = 3;
-	//std::string productSn = "AABMZD00001E6PB1AVNP";
 	std::string productSnCode = productSn.substr(0, 9);
 
 	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
@@ -1061,8 +1054,6 @@ DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
 	if (productItem == productMap.end()) {
 		std::string logStr = "Product " + productSnCode + " does not exist!\n";
 		AppendLog(StringToLPCWSTR(logStr));
-//		mtx[gpioPin].unlock();
-		//return;
 		return 0;
 	}
 
@@ -1070,32 +1061,53 @@ DWORD __stdcall TriggerOnXXX(LPVOID lpParam) {
 	AppendLog(StringToLPCWSTR(logStr));
 
 	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long start = duration_in_milliseconds.count();
-	//product2btest* p2t = new product2btest(gpioPin, productSn, head, start);
+	auto now3 = std::chrono::system_clock::now();
+	auto duration_in_milliseconds3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
+	long startTime = duration_in_milliseconds3.count();
 
 	auto it = map2bTest.find(gpioPin);
 	if (it == map2bTest.end()) {
 		AppendLog(L"map2bTest init error!");
-//		mtx[gpioPin].unlock();
-		//return;
 		return 0;
 	}
 	it->second->pinNumber = gpioPin;
 	it->second->productSn = productSn;
 	it->second->productSnCode = productSnCode;
 	it->second->processUnitListHead = head;
-	//processUnitListFind(listHead->nextunit)
-	//	lastTestTimestamp(timestamp)
-	it->second->shotTimestamp = start;
+	it->second->shotTimestamp = startTime;
 
-	//map2bTest.insert(std::make_pair(gpioPin, p2t));
+	product2btest* myp2btest = it->second;
+	std::vector<HANDLE> handles;
+	auto now = std::chrono::system_clock::now();
+	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long start = duration_in_milliseconds.count();
 
-	//hMainWork[gpioPin] = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
-	HANDLE hdw = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
-	//allMainWorkHandles.push_back(hMainWork[gpioPin]);
-	std::string logString = std::to_string(__LINE__) + ", trigger on, handle count: " + std::to_string(allMainWorkHandles.size()) + "\n";
+	ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
+	int count = 0;
+	int gpiopin = myp2btest->processUnitListHead->pin;
+	while (tmpFind != myp2btest->processUnitListHead) {
+		auto now = std::chrono::system_clock::now();
+		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long runla = duration_in_milliseconds.count();
+
+		// 加句柄队列
+		if ((runla - start) >= tmpFind->laterncy) {
+			tmpFind->productSn = myp2btest->productSn;
+
+			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, tmpFind, 0, NULL);
+			handles.push_back(hUnitWork);
+			tmpFind = tmpFind->nextunit;
+		}
+		else {
+			Sleep(10);
+		}
+	}
+
+	for (auto& handle : handles) {
+		WaitForSingleObject(handle, INFINITE);
+		CloseHandle(handle);
+	}
+
 	return 0;
 }
 
@@ -1138,148 +1150,8 @@ void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	}
 	isPinTriggered[gpioPin] = true;
 
-	HANDLE hdw = CreateThread(NULL, 0, TriggerOnXXX, (LPVOID)gpioPin, 0, NULL);
+	HANDLE hdw = CreateThread(NULL, 0, MainWorkThread, (LPVOID)gpioPin, 0, NULL);
 	return;
-
-	//// 得到产品序列号前9位
-	//auto it = deviceMap.find(triggerMap[gpioPin]);
-	//if (it == deviceMap.end()) {
-	//	AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
-	//	return;
-	//}
-
-	//CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-	//CR->StartGrabbing();
-	//std::vector<std::string> results = CR->ReadCode();
-	//CR->StopGrabbing();
-
-	//std::string productSn = "";
-	//for (size_t i = 0; i < results.size(); i++) {
-	//	std::string tmpr = results[i];
-	//	// 取最长
-	//	if (tmpr.size() > productSn.size()) {
-	//		productSn = tmpr;
-	//	}
-	//}
-	//if (productSn.length() < 9) {
-	//	AppendLog(_T("扫码错误，扫码结果不足9位！\n"));
-	//	return;
-	//}
-	//std::string productSnCode = productSn.substr(0, 9);
-/*
-	auto now1 = std::chrono::system_clock::now();
-	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long long timeMillisCount1 = timeMillis1.count();
-
-	// 得到产品序列号前9位
-	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
-	std::vector<std::string> codereaderresults;
-	for (std::string codereader : vcodereaders) {
-		auto it = deviceMap.find(codereader);
-		if (it == deviceMap.end()) {
-			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
-			AppendLog(_T("光电开关故障\n"));
-			mtx[gpioPin].unlock();
-			//return;
-			return 0;
-		}
-		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-		std::string logStr = "CodeReader " + CR->e_deviceCode + " called!" + std::to_string(CR->GetAcquisitionBurstFrameCount()) +"frames\n";
-		AppendLog(StringToLPCWSTR(logStr));
-		CR->StartGrabbing();
-		std::vector<std::string> results;
-		int crRet = CR->ReadCode(results);
-		CR->StopGrabbing();
-		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
-		logStr = "CodeReader ret: " + std::to_string(crRet) + "\n";
-		AppendLog(StringToLPCWSTR(logStr));
-	}
-
-	if (codereaderresults.empty()) {
-		AppendLog(_T("扫码结果为空！\n"));
-		mtx[gpioPin].unlock();
-		//return;
-		return 0;
-	}
-	std::string productSn = "";
-	for (size_t i = 0; i < codereaderresults.size(); i++) {
-		std::string tmpr = codereaderresults[i];
-		// 取最长
-		if (tmpr.size() > productSn.size()) {
-			productSn = tmpr;
-		}
-	}
-	if (productSn.length() < 13) {
-		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
-		//return;
-		return 0;
-	}
-
-	auto now2 = std::chrono::system_clock::now();
-	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-	long long timeMillisCount2 = timeMillis2.count();
-	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
-	AppendLog(StringToLPCWSTR(Log));
-
-	//gpioPin = 3;
-	//std::string productSn = "AABMZD00001E6PB1AVNP";
-	std::string productSnCode = productSn.substr(0, 9);
-
-	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
-	auto productItem = productMap.find(productSnCode);
-	if (productItem == productMap.end()) {
-		std::string logStr = "Product " + productSnCode + " does not exist!\n";
-		AppendLog(StringToLPCWSTR(logStr));
-		mtx[gpioPin].unlock();
-		//return;
-		return 0;
-	}
-
-	std::string logStr = "Product " + productSn + " scanned!\n";
-	AppendLog(StringToLPCWSTR(logStr));
-
-	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long start = duration_in_milliseconds.count();
-	//product2btest* p2t = new product2btest(gpioPin, productSn, head, start);
-
-	auto it = map2bTest.find(gpioPin);
-	if (it == map2bTest.end()) {
-		AppendLog(L"map2bTest init error!");
-		mtx[gpioPin].unlock();
-		//return;
-		return 0;
-	}
-	it->second->pinNumber = gpioPin;
-	it->second->productSn = productSn;
-	it->second->productSnCode = productSnCode;
-	it->second->processUnitListHead = head;
-	//processUnitListFind(listHead->nextunit)
-	//	lastTestTimestamp(timestamp)
-	it->second->shotTimestamp = start;
-
-	//map2bTest.insert(std::make_pair(gpioPin, p2t));
-
-	//hMainWork[gpioPin] = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
-	HANDLE hdw = CreateThread(NULL, 0, MainWorkThread, it->second, 0, NULL);
-	//allMainWorkHandles.push_back(hMainWork[gpioPin]);
-	std::string logString = std::to_string(__LINE__) + ", trigger on, handle count: " + std::to_string(allMainWorkHandles.size()) + "\n";
-*/
-	/*AppendLog(StringToLPCWSTR(logString));
-	loglockStr = std::to_string(__LINE__) + ", GPIO PIN "  + " before wait";
-	AppendLog(StringToLPCWSTR(loglockStr));
-	if(0 != hdw){ WaitForSingleObject(hdw, INFINITE); }
-
-	loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + " after wait";
-	AppendLog(StringToLPCWSTR(loglockStr));
-	if (0 != hdw) { CloseHandle(hdw); }*/
-
-	/*loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + " after closehandle";
-	AppendLog(StringToLPCWSTR(loglockStr));
-	mtx[gpioPin].unlock();
-	loglockStr = std::to_string(__LINE__) + ", GPIO PIN "  + "   unlocked \n";
-	AppendLog(StringToLPCWSTR(loglockStr));*/
 }
 
 DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
@@ -1311,87 +1183,6 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
 	std::string command = "python " + pyPath + " COM7 38400 FF1606160032A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7AD84";
 	command = "python " + pyPath + " COM7 38400 \"FF 16 06 16 00 32 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 AD 84\"";
 	system(command.c_str());
-
-	return 0;
-}
-
-DWORD __stdcall MainWorkThread(LPVOID lpParam) { //每个pin绑定一个对应的工作线程和锁
-	//DWORD tid = GetCurrentThreadId();
-	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
-	//AppendLog(StringToLPCWSTR(logStr));
-	CloseHandle(GetCurrentThread());
-	product2btest* myp2btest = static_cast<product2btest*>(lpParam);
-	std::vector<HANDLE> handles;
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long start = duration_in_milliseconds.count();
-
-	ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
-	int count = 0;
-	int gpiopin = myp2btest->processUnitListHead->pin;
-	while (tmpFind != myp2btest->processUnitListHead) {
-		// for test
-		//count++;
-		//if (count > 20) {
-		//	AppendLog(L"dead loop\n");
-		//	break;
-		//}
-
-		auto now = std::chrono::system_clock::now();
-		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-		long runla = duration_in_milliseconds.count();
-
-		// 加句柄队列
-		if ((runla - start) >= tmpFind->laterncy) {
-			tmpFind->productSn = myp2btest->productSn;
-
-/*			// 建立目录和配置文件
-			std::string path = projDir.c_str();
-			path += "\\" + pipelineCode + "\\" + tmpFind->productSnModel + "\\" + tmpFind->productSn + "\\" + tmpFind->processesCode;
-			bool mkdirRet = CreateRecursiveDirectory(path);
-			std::string logStr = "Directory " + path + " created ret: ";
-			if (mkdirRet) {
-				logStr += "true\n";
-			}
-			else {
-				logStr += "false\n";
-			}
-			AppendLog(StringToLPCWSTR(logStr));
-
-			nlohmann::json args;
-			args["pipelineCode"] = pipelineCode;
-			args["processesCode"] = tmpFind->processesCode;
-			args["processesTemplateCode"] = tmpFind->processesTemplateCode;
-			args["productSn"] = tmpFind->productSn;
-			args["productSnCode"] = tmpFind->productSnCode;
-			args["productSnModel"] = tmpFind->productSnModel;
-			args["sampleTime"] = 111;
-			std::ofstream file(path + "\\requestArgs.json");
-			file << args;
-*/
-			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, tmpFind, 0, NULL);
-			handles.push_back(hUnitWork);
-			tmpFind = tmpFind->nextunit;
-		}
-		else {
-			Sleep(10);
-		}
-	}
-
-	for (auto& handle : handles) {
-		WaitForSingleObject(handle, INFINITE);
-		CloseHandle(handle);
-	}
-	//ProcessUnit* processUnitListHead = myp2btest->processUnitListHead;
-	//p2t->processUnitListHead = nullptr;
-	//isPinTriggered[gpioPin] = false;
-
-	//AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
-	//SetPostFlag(processUnitListHead);
-
-	//logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " end!\n";
-	//AppendLog(StringToLPCWSTR(logStr));
 
 	return 0;
 }
