@@ -42,7 +42,7 @@ public:
 	size_t RegistDevice(int pin, HWND hwnd);
 	void SetHwnd(HWND hwnd) { this->hwnd = hwnd; }
 	int Read(const int pinNumber, unsigned char& curState);
-	int ReadMultipleTimes(const int pinNumber, unsigned char& curState, const int times = 10);
+	int ReadMultipleTimes(const char pinNumber, unsigned char& curState, const int times = 10);
 
 	bool StartThread();
 	void StopThread();
