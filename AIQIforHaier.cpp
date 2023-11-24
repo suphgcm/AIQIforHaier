@@ -221,6 +221,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 
+	StartSelfTesting();
+	GetConfig();
+	f_QATESTING = true;
+
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
 
 	MSG msg;
@@ -331,16 +335,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DestroyWindow(hWnd);
 			break;
 		case ID_SELFTESTING:
-			StartSelfTesting(hWnd);
+//			StartSelfTesting(hWnd);
 			break;
 		case ID_QATESTING:
 			// todo: 改为 f_QATESTING = !f_QATESTING; 并加入打勾的功能
-			f_QATESTING = true;
+//			f_QATESTING = true;
 			break;
 		case ID_ALARM:
 			break;
 		case ID_GETCFG:
-			GetConfig(hWnd);
+//			GetConfig(hWnd);
 			break;
 		case ID_CHECKUNIT:
 			PrintDevices();
@@ -422,7 +426,8 @@ DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
 }
 
 // 各个按钮对应的函数
-void StartSelfTesting(HWND hWnd) {
+void StartSelfTesting(/*HWND hWnd*/) {
+	HWND hWnd = FindWindow(NULL, szTitle);
 	HMENU hMenu = GetMenu(hWnd);
 	if (f_SELFTESTING == false) {
 		CheckMenuItem(hMenu, ID_SELFTESTING, MF_CHECKED); // 打勾
@@ -725,7 +730,8 @@ void PrintDevices() {
 }
 
 // 处理得到 productMap
-void GetConfig(HWND hWnd) {
+void GetConfig(/*HWND hWnd*/) {
+	HWND hWnd = FindWindow(NULL, szTitle);
 	HMENU hMenu = GetMenu(hWnd);
 	if (f_GETCFG) {
 		f_GETCFG = !f_GETCFG;

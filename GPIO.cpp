@@ -3,15 +3,11 @@
 #include <thread>
 #include <vector>
 #include <string>
-#include "Uhi.h"
-
-extern void AppendLog(LPCWSTR text);
-extern LPCWSTR StringToLPCWSTR(const std::string& s);
 
 bool GPIO::Init() {
-	m_handle = new(Uhi);
-	if (m_handle == nullptr) {
-		std::cerr << "Init lib failed: " << std::endl;
+	int ret = libIoCtrlInit(&m_handle, m_bios_id);
+	if (ret != 0) {
+		std::cerr << "Init lib failed: " << ret << std::endl;
 		return false;
 	}
 	return true;
@@ -21,8 +17,11 @@ bool GPIO::Deinit() {
 	if (m_handle == nullptr) {
 		return true;
 	}
-
-	delete(m_handle);
+	int ret = libIoCtrlDeinit(&m_handle);
+	if (ret != 0) {
+		std::cerr << "Deinit lib failed: " << ret << std::endl;
+		return false;
+	}
 	return true;
 }
 
@@ -32,43 +31,29 @@ size_t GPIO::RegistDevice(int pin, HWND hwnd) {
 }
 
 int GPIO::Read(int pinNumber, unsigned char& curState) {
-	GPIO_STATE state;
-	Uhi* hUhi = (Uhi*)m_handle;
-
-	if (hUhi->GetGpioState(pinNumber, state)) {
-		std::cerr << "getPinLevel failed: " << '-1' << std::endl;
-		return -1;
+	int ret = getPinLevel(&m_handle, (GPIO_PIN_INDEX)pinNumber, &curState);
+	if (ret != 0) {
+		std::cerr << "getPinLevel failed: " << ret << std::endl;
+		return ret;
 	}
-
-	if (state == GPIO_LOW) {
-		curState = 0;
-	}
-	else {
-		curState = 1;
-	}
-
 	std::cout << " GPIO_PIN_INDEX = " << pinNumber << " , " << " curState = " << (int)curState << std::endl;
-	return 0;
+	return ret;
 }
 
-/*
 int GPIO::ReadMultipleTimes(const int pinNumber, unsigned char& curState, const int times) {
-	GPIO_STATE state = GPIO_LOW;
-	Uhi* hUhi = (Uhi*)m_handle;
-
-	bool ret = hUhi->GetGpioState(pinNumber, state);
-
-	if (ret != true) {
-		std::cerr << "getPinLevel failed: " << '-1' << std::endl;
-		return -1;
+	unsigned char state = 2;
+	int ret = getPinLevel(&m_handle, (GPIO_PIN_INDEX)pinNumber, &state);
+	if (ret != 0) {
+		std::cerr << "getPinLevel failed: " << ret << std::endl;
+		return ret;
 	}
 
 	for (int i = 0; i < times - 1; ++i) {
-		GPIO_STATE tempState = GPIO_LOW;
-		bool ret = hUhi->GetGpioState(pinNumber, tempState);
-		if (ret != true) {
-			std::cerr << "getPinLevel failed: " << '-1' << std::endl;
-			return -1;
+		unsigned char tempState = 2;
+		int ret = getPinLevel(&m_handle, (GPIO_PIN_INDEX)pinNumber, &tempState);
+		if (ret != 0) {
+			std::cerr << "getPinLevel failed: " << ret << std::endl;
+			return ret;
 		}
 		if (tempState != state) {
 			std::cerr << "Level transition!" << std::endl;
@@ -76,49 +61,7 @@ int GPIO::ReadMultipleTimes(const int pinNumber, unsigned char& curState, const 
 		}
 	}
 
-	if (state == GPIO_LOW)
-	{
-		curState = 0;
-	}
-	else
-	{
-		curState = 1;
-	}
-	return 0;
-}
-*/
-int GPIO::ReadMultipleTimes(const char pinNumber, unsigned char& curState, const int times) {
-	GPIO_STATE state;
-	Uhi* hUhi = (Uhi*)m_handle;
-
-	bool retu = hUhi->GetWinIoInitializeStates();
-	bool ret = hUhi->GetGpioState(pinNumber, state);
-	if (ret != true) {
-		std::cerr << "getPinLevel failed: " << "-1" << std::endl;
-		return -1;
-	}
-
-	for (int i = 0; i < times - 1; ++i) {
-		GPIO_STATE tempState = GPIO_LOW;
-		bool ret = hUhi->GetGpioState(pinNumber, tempState);
-		if (ret != true) {
-			std::cerr << "getPinLevel failed: " << "-1" << std::endl;
-			return -1;
-		}
-		if (tempState != state) {
-			std::cerr << "Level transition!" << std::endl;
-			return -1;
-		}
-	}
-
-	if (state == GPIO_LOW)
-	{
-		curState = 0;
-	}
-	else
-	{
-		curState = 1;
-	}
+	curState = state;
 	return 0;
 }
 
@@ -143,71 +86,61 @@ bool GPIO::SetGpioParam(std::string deviceTypeId, std::string deviceTypeName, st
 * 变为高电平时，记录正的timestamp.ms数值；持续10ms后发消息msgoff；发送结束后修改值为1；1不检查持续时间
 */
 DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
-	MessageBox(NULL, L"GPIO线程启动!", L"GPIO", MB_OK);
+//	MessageBox(NULL, L"GPIO线程启动!", L"GPIO", MB_OK);
 	long requiredDur = 10;
 
-/*	auto now = std::chrono::system_clock::now();
+	auto now = std::chrono::system_clock::now();
 	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 	long long timeMillisCount = timeMillis.count();
 	long long lastChange[8];
 	for (int i = 0; i < 8; ++i) {
 		lastChange[i] = timeMillisCount;
 	}
-*/
-	long pinLevel[8] = { 1, 1, 1, 1, 0, 0, 0, 0 };
+	long pinLevel[8] = { 1, 0, 1, 0, 1, 0, 1, 0 };
 
 	GPIO* gpio = static_cast<GPIO*>(lpParam);
 	while (gpio->is_thread_running == true) {
-		for (char i = 1; i < 4; i ++) {
+		for (int i = 2; i < 8; i += 2) {
 			// 检测 6, 4, 2
 			unsigned char curState = 2;
 			gpio->ReadMultipleTimes(i, curState, 10);
 
 			if (curState == 0 && pinLevel[i] == 1) {
 				// 高变低
-/*				auto now = std::chrono::system_clock::now();
+				auto now = std::chrono::system_clock::now();
 				auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 				long long timeMillisCount = timeMillis.count();
 				if (timeMillisCount - lastChange[i] < requiredDur) {
 					continue;
 				}
-*/
+
 				// 触发
 				if (gpio->msgmap.find(i) != gpio->msgmap.end()) {
-					auto now = std::chrono::system_clock::now();
-					auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-					long long timeMillisCount = timeMillis.count();
 					SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG + 1, i, i);
-					auto now1 = std::chrono::system_clock::now();
-					auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-					long long timeMillisCount1 = timeMillis1.count();
-					std::string Log = "SendMessage time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
-					AppendLog(StringToLPCWSTR(Log));
 				}
 				pinLevel[i] = 0;
-//				lastChange[i] = timeMillisCount;
+				lastChange[i] = timeMillisCount;
 			}
 			if (curState == 1 && pinLevel[i] == 0) {
 				// 低变高
-/*				auto now = std::chrono::system_clock::now();
+				auto now = std::chrono::system_clock::now();
 				auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 				long long timeMillisCount = timeMillis.count();
 				if (timeMillisCount - lastChange[i] < requiredDur) {
 					continue;
 				}
-*/
+
 				// 触发结束
 				if (gpio->msgmap.find(i) != gpio->msgmap.end()) {
 					SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG - 1, i, i);
 				}
 				pinLevel[i] = 1;
-//				lastChange[i] = timeMillisCount;
+				lastChange[i] = timeMillisCount;
 			}
 		}
-		Sleep(requiredDur);
 	}
 
-	MessageBox(NULL, L"GPIO线程结束!", L"GPIO", MB_OK);
+//	MessageBox(NULL, L"GPIO线程结束!", L"GPIO", MB_OK);
 	return 0;
 }
 
