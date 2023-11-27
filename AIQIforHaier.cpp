@@ -1222,6 +1222,10 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
 	case 2: { // Camera
+		auto now1 = std::chrono::system_clock::now();
+		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+		long long timeMillisCount1 = timeMillis1.count();
+
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
 		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
@@ -1229,6 +1233,13 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		devicecm->GetImage(path, unit);
 		devicecm->StopGrabbing();
 		devicecm->UnLock();
+
+		auto now2 = std::chrono::system_clock::now();
+		auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+		long long timeMillisCount2 = timeMillis2.count();
+		std::string Log = "Camera code = " + devicecm->e_deviceCode +"Camera time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
+		AppendLog(StringToLPCWSTR(Log));
+
 		break;
 	}
 	case 3: { // ScanningGun
