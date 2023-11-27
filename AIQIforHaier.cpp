@@ -1231,7 +1231,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 
 		devicecm->SetValuesByJson(unit->parameter);
 //		devicecm->StartGrabbing();
-		devicecm->GetImage(path, unit)
+		devicecm->GetImage(path, unit);
 //		devicecm->StopGrabbing();
 
 		auto now2 = std::chrono::system_clock::now();
