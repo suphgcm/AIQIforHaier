@@ -437,7 +437,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			AppendLog(_T("开始设备基础信息读取和初始化\n"));
 			DeviceConfigued = true;
 
-			std::string deviceConfigPath = projDir.c_str();
+			std::string deviceConfigPath = "D:\\AIQIforHaier";
 			deviceConfigPath.append("\\basicdeviceconfig\\deviceconfiglist.json");
 			std::ifstream jsonFile(deviceConfigPath); // todo: 文件路径可配置
 			if (!jsonFile.is_open()) {
@@ -677,7 +677,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 4: { // 音频
 				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
 				
-				std::string soundFile = projDir.c_str();
+				std::string soundFile = "D:\\AIQIforHaier";
 				soundFile.append("\\sounds\\upset.pcm"); // todo: 根据配置设置播放的音频文件
 				audioDevice->ReadFile(soundFile);
 
@@ -742,15 +742,15 @@ void GetConfig(/*HWND hWnd*/) {
 	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
 
 	// 调用 GetPipelineConfig.jar
-	std::string jarPath = projDir.c_str();
+	std::string jarPath = "D:\\AIQIforHaier";
 	jarPath.append("\\GetPipelineConfig.jar");
-	std::string cfgDir = projDir.c_str();
+	std::string cfgDir = "D:\\AIQIforHaier";
 	cfgDir.append("\\productconfig\\");
 	std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
     std::system(command.c_str());
 
 	// 检查 flag
-	std::string flagpath = projDir.c_str();
+	std::string flagpath = "D:\\AIQIforHaier";
 	flagpath.append("\\productconfig\\flag");
 	auto now = std::chrono::system_clock::now();
 	auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
@@ -766,7 +766,7 @@ void GetConfig(/*HWND hWnd*/) {
 
 	// 读取 pipelineConfig.json
 	//std::string configfile = ".\\productconfig\\pipelineConfig.json";
-	std::string configfile = projDir.c_str();
+	std::string configfile = "D:\\AIQIforHaier";
 	configfile.append("\\productconfig\\pipelineConfig.json");
 	std::ifstream jsonFile(configfile);
 	if (!jsonFile.is_open()) {
@@ -1184,7 +1184,7 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
 
 	Sleep(200);
 
-	std::string pyPath = projDir.c_str();
+	std::string pyPath = "D:\\AIQIforHaier";
 	pyPath.append("\\SerialCommunication.py");
 	std::string command = "python " + pyPath + " COM7 38400 FF1606160032A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7AD84";
 	command = "python " + pyPath + " COM7 38400 \"FF 16 06 16 00 32 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 AD 84\"";
@@ -1200,7 +1200,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 
 	ProcessUnit* unit = static_cast<ProcessUnit*>(lpParam);
 
-	std::string path = projDir.c_str();
+	std::string path = "D:\\AIQIforHaier";
 	//add replace productionSnModel / to _
 	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
 
@@ -1224,11 +1224,22 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	case 2: { // Camera
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
 		devicecm->Lock();
+		auto now1 = std::chrono::system_clock::now();
+		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+		long long timeMillisCount1 = timeMillis1.count();
+
 		devicecm->SetValuesByJson(unit->parameter);
 		devicecm->StartGrabbing();
 		devicecm->GetImage(path, unit);
 		devicecm->StopGrabbing();
+
+		auto now2 = std::chrono::system_clock::now();
+		auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+		long long timeMillisCount2 = timeMillis2.count();
+		std::string Log = "Camera code = " + devicecm->e_deviceCode + ", Camera time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
+		AppendLog(StringToLPCWSTR(Log));
 		devicecm->UnLock();
+
 		break;
 	}
 	case 3: { // ScanningGun
@@ -1425,12 +1436,12 @@ void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 void SetPostFlag(ProcessUnit* processUnitListHead) {
 	ProcessUnit* curProcess = processUnitListHead->nextunit;
 	while (curProcess != nullptr && curProcess != processUnitListHead) {
-		std::string processPath = projDir.c_str();
+		std::string processPath = "D:\\AIQIforHaier";
 		//std::string tmpProductionSnModel = curProcess->productSnModel.replace(curProcess->productSnModel.begin(), curProcess->productSnModel.end(), "/", "_");
 		processPath += "\\" + pipelineCode + "\\" + curProcess->productSnModel + "\\" + curProcess->productSn + "\\" + curProcess->processesCode;
 		//processPath += "\\" + pipelineCode + "\\" + tmpProductionSnModel + "\\" + curProcess->productSn + "\\" + curProcess->processesCode;
 
-		std::string logPath = projDir.c_str();
+		std::string logPath = "D:\\AIQIforHaier";
 		logPath += "\\PostFiles.log";
 
 		//std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + processPath + " requestArgs.json " + logPath;
@@ -1448,14 +1459,14 @@ void SetPostFlag(ProcessUnit* processUnitListHead) {
 		reqJson["logPath"] = logPath;
 
 		// req json
-		std::string reqPath = projDir.c_str();
+		std::string reqPath = "D:\\AIQIforHaier";
 		reqPath += "\\post\\req\\" + std::to_string(microseconds) + ".json";
 		std::ofstream o1(reqPath);
 		o1 << reqJson.dump(4) << std::endl;
 		o1.close();
 
 		// blank flag
-		std::string flagPath = projDir.c_str();
+		std::string flagPath = "D:\\AIQIforHaier";
 		flagPath += "\\post\\flag\\" + std::to_string(microseconds);
 		std::ofstream o2(flagPath);
 		o2.close();

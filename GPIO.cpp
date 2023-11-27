@@ -143,7 +143,7 @@ bool GPIO::SetGpioParam(std::string deviceTypeId, std::string deviceTypeName, st
 * 变为高电平时，记录正的timestamp.ms数值；持续10ms后发消息msgoff；发送结束后修改值为1；1不检查持续时间
 */
 DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
-	MessageBox(NULL, L"GPIO线程启动!", L"GPIO", MB_OK);
+//	MessageBox(NULL, L"GPIO线程启动!", L"GPIO", MB_OK);
 	long requiredDur = 10;
 
 	/*	auto now = std::chrono::system_clock::now();
@@ -207,7 +207,7 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 		Sleep(requiredDur);
 	}
 
-	MessageBox(NULL, L"GPIO线程结束!", L"GPIO", MB_OK);
+//	MessageBox(NULL, L"GPIO线程结束!", L"GPIO", MB_OK);
 	return 0;
 }
 
