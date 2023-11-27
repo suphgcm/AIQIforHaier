@@ -655,6 +655,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 2: {//摄像机开关
 				Camera* deviceCamera = dynamic_cast<Camera*>(it->second);
 				if (deviceCamera->GetCameraByIpAddress() && deviceCamera->Init()) {
+					deviceCamera->StartGrabbing();
 					testflag++;
 				}
 				else {
@@ -1229,9 +1230,9 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
 		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
-		devicecm->StartGrabbing();
+//		devicecm->StartGrabbing();
 		devicecm->GetImage(path, unit);
-		devicecm->StopGrabbing();
+//		devicecm->StopGrabbing();
 		devicecm->UnLock();
 
 		auto now2 = std::chrono::system_clock::now();
