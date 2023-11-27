@@ -655,6 +655,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 2: {//摄像机开关
 				Camera* deviceCamera = dynamic_cast<Camera*>(it->second);
 				if (deviceCamera->GetCameraByIpAddress() && deviceCamera->Init()) {
+					deviceCamera->StartGrabbing();
 					testflag++;
 				}
 				else {
@@ -1229,9 +1230,9 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		long long timeMillisCount1 = timeMillis1.count();
 
 		devicecm->SetValuesByJson(unit->parameter);
-		devicecm->StartGrabbing();
-		devicecm->GetImage(path, unit);
-		devicecm->StopGrabbing();
+//		devicecm->StartGrabbing();
+		devicecm->GetImage(path, unit)
+//		devicecm->StopGrabbing();
 
 		auto now2 = std::chrono::system_clock::now();
 		auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
@@ -1239,7 +1240,6 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		std::string Log = "Camera code = " + devicecm->e_deviceCode + ", Camera time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
 		AppendLog(StringToLPCWSTR(Log));
 		devicecm->UnLock();
-
 		break;
 	}
 	case 3: { // ScanningGun
