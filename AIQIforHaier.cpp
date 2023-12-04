@@ -1028,6 +1028,10 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
 		logStr = "CodeReader ret: " + std::to_string(crRet) + "\n";
 		AppendLog(StringToLPCWSTR(logStr));
+		if (!results.empty())
+		{
+			break;
+		}
 	}
 
 	if (codereaderresults.empty()) {
@@ -1218,7 +1222,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	args["productSnModel"] = unit->productSnModel;
 	args["sampleTime"] = 111;
 
-	std::string logStr = "device type:" + unit->deviceTypeCode + ", device code:" + unit->deviceCode + " called!\n";
+	std::string logStr = "device type: " + unit->deviceTypeCode + " ,device code: " + unit->deviceCode + " called!\n";
 	AppendLog(StringToLPCWSTR(logStr));
 
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
@@ -1235,19 +1239,23 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 
 		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
-//		devicecm->StartGrabbing();
 		devicecm->GetImage(path, unit);
-//		devicecm->StopGrabbing();
 		devicecm->UnLock();
 		break;
 	}
 	case 3: { // ScanningGun
 		CodeReader* deviceCR = dynamic_cast<CodeReader*>(unit->eq);
+		if (deviceCR->e_deviceCode == "DC100009")
+		{
+			auto now = std::chrono::system_clock::now();
+			auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+			long long timeMillisCount = timeMillis.count();
+			std::string LogX = "pin 2 trriger to call scan gun time = " + std::to_string(timeMillisCount - pin2TriggerTime) + "\n";
+			AppendLog(StringToLPCWSTR(LogX));
+		}
 		deviceCR->SetValuesByJson(unit->parameter);
-		deviceCR->StartGrabbing();
 		std::vector<std::string> codeRes;
 		int crRet = deviceCR->ReadCode(codeRes);
-		deviceCR->StopGrabbing();
 		std::string logStr = "device code:" + unit->deviceCode + ", called ret:"+ std::to_string(crRet) + ", code count: " + std::to_string(codeRes.size()) + "\n";
 		AppendLog(StringToLPCWSTR(logStr));
 //		args["content"] = codeRes;

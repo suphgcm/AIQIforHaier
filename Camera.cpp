@@ -437,11 +437,11 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		auto now3 = std::chrono::system_clock::now();
 		auto timeMillis3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
 		long long timeMillisCount3 = timeMillis3.count();
-		std::string Log = "Camera Code = " + e_deviceCode + ",GetImageBuffer Time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
+		std::string Log = "Camera Code = " + e_deviceCode + " ,GetImageBuffer Time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
 		AppendLog(StringToLPCWSTR(Log));
-		std::string Log1 = "Camera Code = " + e_deviceCode + ",Format to jpeg Time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
+		std::string Log1 = "Camera Code = " + e_deviceCode + " ,Format to jpeg Time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
 		AppendLog(StringToLPCWSTR(Log1));
-		std::string Log2 = "Camera Code = " + e_deviceCode + ",Push message Time = " + std::to_string(timeMillisCount3 - timeMillisCount2) + "\n";
+		std::string Log2 = "Camera Code = " + e_deviceCode + " ,Push message Time = " + std::to_string(timeMillisCount3 - timeMillisCount2) + "\n";
 		AppendLog(StringToLPCWSTR(Log2));
 		std::string Log3 = "camera interval = " + std::to_string(m_cameraInterval) + "\n";
 		AppendLog(StringToLPCWSTR(Log3));

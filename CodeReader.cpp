@@ -99,13 +99,13 @@ bool CodeReader::Init() {
 		return false;
 	}
 
-	// 设置关闭自动曝光
+/*	// 设置关闭自动曝光
 	nRet = MV_CODEREADER_SetEnumValue(m_handle, "ExposureAuto", 0);
 	if (nRet != MV_CODEREADER_OK) {
 		printf("Set ExposureAuto fail! nRet [0x%x]\n", nRet);
 		return false;
 	}
-
+*/
 	// 设置曝光时间，设置曝光时间前请先关闭自动曝光，否则会设置失败
 	nRet = MV_CODEREADER_SetFloatValue(m_handle, "ExposureTime", m_exposureTime);
 	if (nRet != MV_CODEREADER_OK) {
@@ -119,13 +119,13 @@ bool CodeReader::Init() {
 	}
 
 	// 应该不需要采集帧率控制
-
+/*
 	// 设置自动曝光增益
 	nRet = MV_CODEREADER_SetEnumValue(m_handle, "GainAuto", 0);
 	if (nRet != MV_CODEREADER_OK) {
 		printf("Set GainAuto fail [%x]\n", nRet);
 	}
-
+*/
 	// 设置曝光增益，请先关闭自动曝光增益否则失败
 	nRet = MV_CODEREADER_SetFloatValue(m_handle, "Gain", m_gain);
 	if (nRet != MV_CODEREADER_OK) {
