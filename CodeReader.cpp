@@ -85,9 +85,17 @@ bool CodeReader::Init() {
 	}
 
 	// 设置触发模式为 off todo: on?
-	nRet = MV_CODEREADER_SetEnumValue(m_handle, "TriggerMode", MV_CODEREADER_TRIGGER_MODE_OFF);
+	nRet = MV_CODEREADER_SetEnumValue(m_handle, "TriggerMode", MV_CODEREADER_TRIGGER_MODE_ON);
 	if (nRet != MV_CODEREADER_OK) {
 		printf("Set Trigger Mode fail! nRet [0x%x]\n", nRet);
+		return false;
+	}
+
+	// 选择软触发
+	nRet = MV_CODEREADER_SetEnumValue(m_handle, "TriggerSource", MV_CODEREADER_TRIGGER_SOURCE_SOFTWARE);
+	if (MV_CODEREADER_OK != nRet)
+	{
+		printf("Set Software Mode fialed! nRet [0x%x]\n", nRet);
 		return false;
 	}
 
@@ -320,7 +328,6 @@ bool CodeReader::StartGrabbing() {
 
 
 bool CodeReader::StopGrabbing() {
-	return true;
 	if (!m_isGrabbing) {
 		return true;
 	}
@@ -336,28 +343,27 @@ bool CodeReader::StopGrabbing() {
 }
 
 int CodeReader::ReadCode(std::vector<std::string>& codes) const {
-
-
 	codes.clear();
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {	
-	MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
-	memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
-	unsigned char* pData = NULL;
+	    MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
+	    memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
+	    unsigned char* pData = NULL;
 
-	auto now = std::chrono::system_clock::now();
-	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long long timeMillisCount = timeMillis.count();
+	    auto now = std::chrono::system_clock::now();
+	    auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	    long long timeMillisCount = timeMillis.count();
 
-		int nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 1000);
+		// 软触发
+		int nRet = MV_CODEREADER_SetCommandValue(m_handle, "TriggerSoftware");
+		if (MV_CODEREADER_OK != nRet)
+		{
+			printf("Set Software Once failed! nRet [0x%x]\n", nRet);
+			continue;
+		}
+
+		nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 1000);
 		if (nRet != MV_CODEREADER_OK) {
 			printf("No data[0x%x]\n", nRet);
-			// gcm 
-			//return nRet;
-			auto now2 = std::chrono::system_clock::now();
-			auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-			long long timeMillisCount2 = timeMillis2.count();
-			std::string Log = "Scan code ret = "+ std::to_string(nRet) + "Scan Code time = " + std::to_string(timeMillisCount2 - timeMillisCount) + "\n";
-			AppendLog(StringToLPCWSTR(Log));
 			continue;
 		}
 		auto now1 = std::chrono::system_clock::now();

@@ -1023,10 +1023,8 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
 		std::string logStr = "CodeReader " + CR->e_deviceCode + " called!" + std::to_string(CR->GetAcquisitionBurstFrameCount()) + "frames\n";
 		AppendLog(StringToLPCWSTR(logStr));
-		CR->StartGrabbing();
 		std::vector<std::string> results;
 		int crRet = CR->ReadCode(results);
-		CR->StopGrabbing();
 		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
 		logStr = "CodeReader ret: " + std::to_string(crRet) + "\n";
 		AppendLog(StringToLPCWSTR(logStr));
