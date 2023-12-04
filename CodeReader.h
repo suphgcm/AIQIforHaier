@@ -44,6 +44,6 @@ public:
     int ReadCode(std::vector<std::string>& results) const;
     
     int GetAcquisitionBurstFrameCount();
-
+    void* GetHandle();
     // Ö´ÐÐË³Ðò£ºSetValuesByJson -> Init -> SetValuesByJson -> StartGrabbing -> ReadCode -> SetValuesByJson -> SetValuesForInited -> StartGrabbing -> ReadCode -> StopGrabbing -> Destroy
 };

@@ -9,6 +9,8 @@
 #include "MessageQueue.h"
 #include "product.h"
 
+extern void AppendLog(LPCWSTR text);
+extern LPCWSTR StringToLPCWSTR(const std::string& s);
 extern std::string pipelineCode;
 
 MV_CC_DEVICE_INFO* Camera::GetCameraByIpAddress() {
@@ -374,6 +376,9 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		//if (MV_OK != nRet) {
 		//	printf("Execute TriggerSoftware fail! nRet [0x%x]\n", nRet);
 		//}
+		auto now = std::chrono::system_clock::now();
+		auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long long timeMillisCount = timeMillis.count();
 
 		int nRet = MV_CC_GetImageBuffer(m_handle, &stOutFrame, 1000);
 		if (nRet != MV_OK) {
@@ -383,6 +388,9 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			printf("Get Image Buffer fail! nRet [0x%x]\n", nRet);
 			return false;
 		}
+		auto now1 = std::chrono::system_clock::now();
+		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+		long long timeMillisCount1 = timeMillis1.count();
 
 		printf("Get Image Buffer: Width[%d], Height[%d], FrameNum[%d]\n",
 			stOutFrame.stFrameInfo.nWidth, stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nFrameNum);
@@ -409,6 +417,9 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 			return false;
 		}
+		auto now2 = std::chrono::system_clock::now();
+		auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+		long long timeMillisCount2 = timeMillis2.count();
 
 		ProcessUnit* unit = (ProcessUnit*)args;
 		struct message msg;
@@ -422,6 +433,18 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		msg.imageBuffer = to_jpeg.pImageBuffer;
 		msg.imageLen = to_jpeg.nImageLen;
 		Singleton::instance().push(msg);
+
+		auto now3 = std::chrono::system_clock::now();
+		auto timeMillis3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
+		long long timeMillisCount3 = timeMillis3.count();
+		std::string Log = "Camera Code = " + e_deviceCode + ",GetImageBuffer Time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
+		AppendLog(StringToLPCWSTR(Log));
+		std::string Log1 = "Camera Code = " + e_deviceCode + ",Format to jpeg Time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
+		AppendLog(StringToLPCWSTR(Log1));
+		std::string Log2 = "Camera Code = " + e_deviceCode + ",Push message Time = " + std::to_string(timeMillisCount3 - timeMillisCount2) + "\n";
+		AppendLog(StringToLPCWSTR(Log2));
+		std::string Log3 = "camera interval = " + std::to_string(m_cameraInterval) + "\n";
+		AppendLog(StringToLPCWSTR(Log3));
 /*
 		//将图片从内存保存到本地中
 		MV_SAVE_IMAGE_TO_FILE_PARAM_EX file;

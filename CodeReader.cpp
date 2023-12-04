@@ -2,6 +2,10 @@
 #include <string>
 #include <chrono>
 #include <thread>
+#include <windows.h>
+
+extern void AppendLog(LPCWSTR text);
+extern LPCWSTR StringToLPCWSTR(const std::string& s);
 
 MV_CODEREADER_DEVICE_INFO* CodeReader::GetCodeReaderByIpAddress() {
 	if (m_isGot) {
@@ -167,7 +171,10 @@ bool CodeReader::Destroy() {
 	m_isInited = false;
 	return true;
 }
-
+void* CodeReader::GetHandle() 
+{
+	return m_handle;
+}
 bool CodeReader::SetValuesForUninited(
 	float exposureTime, float acquisitionFrameRate, float gain, int acquisitionBurstFrameCount, 
 	int lightSelectorEnable, int currentPosition
@@ -313,8 +320,7 @@ bool CodeReader::StartGrabbing() {
 
 
 bool CodeReader::StopGrabbing() {
-	//return true;
-
+	return true;
 	if (!m_isGrabbing) {
 		return true;
 	}
@@ -338,14 +344,27 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 	memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
 	unsigned char* pData = NULL;
 
+	auto now = std::chrono::system_clock::now();
+	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long long timeMillisCount = timeMillis.count();
+
 		int nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 1000);
 		if (nRet != MV_CODEREADER_OK) {
 			printf("No data[0x%x]\n", nRet);
 			// gcm 
 			//return nRet;
+			auto now2 = std::chrono::system_clock::now();
+			auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+			long long timeMillisCount2 = timeMillis2.count();
+			std::string Log = "Scan code ret = "+ std::to_string(nRet) + "Scan Code time = " + std::to_string(timeMillisCount2 - timeMillisCount) + "\n";
+			AppendLog(StringToLPCWSTR(Log));
 			continue;
 		}
-
+		auto now1 = std::chrono::system_clock::now();
+		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+		long long timeMillisCount1 = timeMillis1.count();
+		std::string Log = "Scan code ret = " + std::to_string(nRet) + "Scan Code time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
+		AppendLog(StringToLPCWSTR(Log));
 		MV_CODEREADER_RESULT_BCR_EX2* stBcrResult = (MV_CODEREADER_RESULT_BCR_EX2*)stImageInfo.UnparsedBcrList.pstCodeListEx2;
 
 		printf("Get One Frame: nChannelID[%d] Width[%d], Height[%d], nFrameNum[%d], nTriggerIndex[%d]\n",

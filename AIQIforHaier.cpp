@@ -667,6 +667,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 3: {//码枪
 				CodeReader* deviceCodeReader = dynamic_cast<CodeReader*>(it->second);
 				if (deviceCodeReader->GetCodeReaderByIpAddress() && deviceCodeReader->Init()) {
+					deviceCodeReader->StartGrabbing();
 					testflag++;
 				}
 				else {
@@ -1194,6 +1195,7 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
 	return 0;
 }
 
+extern long long pin2TriggerTime;
 DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//DWORD tid = GetCurrentThreadId();
 	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
@@ -1224,21 +1226,20 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
 	case 2: { // Camera
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
-		devicecm->Lock();
-		auto now1 = std::chrono::system_clock::now();
-		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-		long long timeMillisCount1 = timeMillis1.count();
+		if (devicecm->e_deviceCode == "DC100008")
+		{
+			auto now = std::chrono::system_clock::now();
+			auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+			long long timeMillisCount = timeMillis.count();
+			std::string LogX = "pin 2 trriger to call camera time = " + std::to_string(timeMillisCount - pin2TriggerTime) + "\n";
+			AppendLog(StringToLPCWSTR(LogX));
+		}
 
+		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
 //		devicecm->StartGrabbing();
-		devicecm->GetImage(path, unit)
+		devicecm->GetImage(path, unit);
 //		devicecm->StopGrabbing();
-
-		auto now2 = std::chrono::system_clock::now();
-		auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-		long long timeMillisCount2 = timeMillis2.count();
-		std::string Log = "Camera code = " + devicecm->e_deviceCode + ", Camera time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
-		AppendLog(StringToLPCWSTR(Log));
 		devicecm->UnLock();
 		break;
 	}
