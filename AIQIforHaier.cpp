@@ -1236,7 +1236,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 			std::string LogX = "pin 2 trriger to call camera time = " + std::to_string(timeMillisCount - pin2TriggerTime) + "\n";
 			AppendLog(StringToLPCWSTR(LogX));
 		}
-
+		Sleep(200);
 		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
 		devicecm->GetImage(path, unit);
