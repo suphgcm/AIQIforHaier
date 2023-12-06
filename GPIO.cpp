@@ -154,11 +154,11 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 			lastChange[i] = timeMillisCount;
 		}
 	*/
-	long pinLevel[8] = { 1, 1, 1, 1, 0, 0, 0, 0 };
+	long pinLevel[8] = { 1, 1, 1, 1, 1, 0, 0, 0 };
 
 	GPIO* gpio = static_cast<GPIO*>(lpParam);
 	while (gpio->is_thread_running == true) {
-		for (char i = 1; i < 4; i++) {
+		for (char i = 1; i < 5; i++) {
 //       for (char i = 2; i < 3; i++) {
 			// ¼ì²â 6, 4, 2
 			unsigned char curState = 2;

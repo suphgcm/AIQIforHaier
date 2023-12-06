@@ -1032,13 +1032,21 @@ DWORD __stdcall InfraredRemoteCtlThread(LPVOID lpParam) {
 		0xA6, 0xEC, 0xE0, 0x00, 0xC0, 0x20, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x8B, 0x5D, 0xB5, 0x00, 0x20, 0x00, 0x00, 0xD5, 0x03, 0xDC
 	};
 
-	if (w.open("com2"))
+	unsigned char rcvBuf[2048] = { 0 };
+	if (w.open("com1"))
 	{
-		std::cout << "open success!" << std::endl;
-		w.sendBytes(cmdG, sizeof(cmdI));
+		cout << "open success!" << std::endl;
+		w.sendBytes(cmdI, sizeof(cmdI));
+/*		Sleep(5000);
+		int length = w.receive(rcvBuf, sizeof(rcvBuf));
+		for (int i = 0; i < length; i++)
+		{
+			printf("0x%x ", rcvBuf[i]);
+		}
+		printf("\n");
+*/
 		w.close();
 	}
-
 	return 0;
 }
 

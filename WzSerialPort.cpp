@@ -234,10 +234,9 @@ int WZSerialPort::sendBytes(char* cmd, int length)
 	}
 }
 
-string WZSerialPort::receive()
+int WZSerialPort::receive(unsigned char* rcvBuf, int length)
 {
 	HANDLE hCom = *(HANDLE*)pHandle;
-	string rec_str = "";
 	char buf[1024];
 	if (this->synchronizeflag)
 	{
@@ -248,14 +247,15 @@ string WZSerialPort::receive()
 			wCount, //要读取的数据最大字节数
 			&wCount, //DWORD*,用来接收返回成功读取的数据字节数
 			NULL); //NULL为同步发送，OVERLAPPED*为异步发送
-		for (int i = 0; i < 1024; i++)
+		int i = 0;
+		for (i = 0; i < wCount && i < length; i++)
 		{
 			if (buf[i] != -52)
-				rec_str += buf[i];
+				rcvBuf[i] = buf[i];
 			else
 				break;
 		}
-		return rec_str;
+		return i;
 	}
 	else
 	{
@@ -270,7 +270,7 @@ string WZSerialPort::receive()
 		m_osRead.hEvent = CreateEvent(NULL, TRUE, FALSE, L"ReadEvent");
 
 		ClearCommError(hCom, &dwErrorFlags, &comStat); //清除通讯错误，获得设备当前状态
-		if (comStat.cbInQue == 0)return ""; //如果输入缓冲区字节数为0，则返回false
+		if (comStat.cbInQue == 0)return 0; //如果输入缓冲区字节数为0，则返回false
 		//std::cout << comStat.cbInQue << std::endl;
 		BOOL bReadStat = ReadFile(hCom, //串口句柄
 			buf, //数据首地址
@@ -292,13 +292,14 @@ string WZSerialPort::receive()
 				return 0;
 			}
 		}
-		for (int i = 0; i < 1024; i++)
+		int i = 0;
+		for (i = 0; i < wCount && i < length; i++)
 		{
 			if (buf[i] != -52)
-				rec_str += buf[i];
+				rcvBuf[i] = buf[i];
 			else
 				break;
 		}
-		return rec_str;
+		return i;
 	}
 }

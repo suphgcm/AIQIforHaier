@@ -41,7 +41,7 @@ public:
 	int sendBytes(char* cmd, int length);
 
 	//接受数据或读数据，成功返回读取实际数据的长度，失败返回0
-	string receive();
+	int receive(unsigned char* rcvBuf, int length);
 
 private:
 	int pHandle[16];
