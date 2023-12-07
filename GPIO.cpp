@@ -4,9 +4,11 @@
 #include <vector>
 #include <string>
 #include "Uhi.h"
+#include "MessageQueue.h"
 
 extern void AppendLog(LPCWSTR text);
 extern LPCWSTR StringToLPCWSTR(const std::string& s);
+extern class MessageQueue<struct gpioMsg> GpioMessageQueue;
 
 bool GPIO::Init() {
 	m_handle = new(Uhi);
@@ -178,7 +180,11 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 					auto now = std::chrono::system_clock::now();
 					auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 					long long timeMillisCount = timeMillis.count();
-					SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG + 1, i, i);
+					//SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG + 1, i, i);
+					struct gpioMsg msg;
+					msg.gpioPin = i;
+					msg.message = gpio->GPIOBASEMSG + 1;
+					GpioMessageQueue.push(msg);
 					auto now1 = std::chrono::system_clock::now();
 					auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
 					long long timeMillisCount1 = timeMillis1.count();
@@ -204,7 +210,11 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 */
 // ´¥·¢½áÊø
 				if (gpio->msgmap.find(i) != gpio->msgmap.end()) {
-					SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG - 1, i, i);
+					//SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG - 1, i, i);
+					struct gpioMsg msg;
+					msg.gpioPin = i;
+					msg.message = gpio->GPIOBASEMSG - 1;
+					GpioMessageQueue.push(msg);
 				}
 				pinLevel[i] = 1;
 				//				lastChange[i] = timeMillisCount;

@@ -88,7 +88,7 @@ void AddBinaryPart(std::vector<char>& body, unsigned char* imageBuffer, unsigned
 	return;
 }
 
-void HttpPost(message &msg)
+void HttpPost(struct httpMsg &msg)
 {
 	HINTERNET hSession=NULL, hConnect=NULL, hRequest=NULL;
 	BOOL  bResults = FALSE;
@@ -179,7 +179,7 @@ void HttpPost(message &msg)
 
 DWORD HttpPostThread(LPVOID lpParam)
 {
-	struct message msg;
+	struct httpMsg msg;
 
 	while (true)
 	{
@@ -190,6 +190,41 @@ DWORD HttpPostThread(LPVOID lpParam)
 		{
 			delete[] msg.imageBuffer;
 		}
+	}
+
+	return 0;
+}
+
+class MessageQueue<struct gpioMsg> GpioMessageQueue;
+
+void GpioMsgProc(struct gpioMsg& msg)
+{
+	int message = msg.message;
+	UINT gpioPin = msg.gpioPin;
+
+	switch (message)
+	{
+	case WM_GPIO_ON:
+		TriggerOn(gpioPin);
+		break;
+	case WM_GPIO_OFF:
+		TriggerOff(gpioPin);
+		break;
+	default:
+		printf("Invalid gpio message.\n");
+	}
+
+	return;
+}
+
+DWORD GpioMessageProcThread(LPVOID lpParam)
+{
+	struct gpioMsg msg;
+
+	while (true)
+	{
+		GpioMessageQueue.wait(msg);
+		GpioMsgProc(msg);
 	}
 
 	return 0;
@@ -221,6 +256,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
+	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 
 	StartSelfTesting();
 	GetConfig();
@@ -369,10 +405,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		PostQuitMessage(0);
 		break;
 	case WM_GPIO_ON:
-		TriggerOn(hWnd, message, wParam, lParam);
+//		TriggerOn(hWnd, message, wParam, lParam);
 		break;
 	case WM_GPIO_OFF:
-		TriggerOff(hWnd, message, wParam, lParam);
+//		TriggerOff(hWnd, message, wParam, lParam);
 		break;
 	case WM_GPIOBASEMSG:
 		break;
@@ -1177,11 +1213,15 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	return 0;
 }
 
-void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	int gpioPin = static_cast<int>(lParam);
-	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
-		+ ", lParam = " + std::to_string(gpioPin) + "\n";
+//void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+//	int gpioPin = static_cast<int>(lParam);
+//	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
+//		+ ", lParam = " + std::to_string(gpioPin) + "\n";
+//	AppendLog(StringToLPCWSTR(triggerLog));
 
+void TriggerOn(UINT gpioPin)
+{
+	std::string triggerLog = "TriggerOn: gpioPin = " + std::to_string(gpioPin) + "\n";
 	AppendLog(StringToLPCWSTR(triggerLog));
 
 	if (!f_QATESTING) {
@@ -1319,7 +1359,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 //		file << args.dump(4) << std::endl;
 //		file.close();
 
-		struct message msg;
+		struct httpMsg msg;
 		msg.pipelineCode = pipelineCode;
 		msg.processesCode = unit->processesCode;
 		msg.processesTemplateCode = unit->processesTemplateCode;
@@ -1392,11 +1432,16 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	return 0;
 }
 
-void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	int gpioPin = static_cast<int>(lParam);
-	std::string triggerLog = "TriggerOff: wParam = " + std::to_string(static_cast<int>(wParam))
-		+ ", lParam = " + std::to_string(gpioPin) + "\n";
-	AppendLog(StringToLPCWSTR(triggerLog));
+//void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+//	int gpioPin = static_cast<int>(lParam);
+//	std::string triggerLog = "TriggerOff: wParam = " + std::to_string(static_cast<int>(wParam))
+//		+ ", lParam = " + std::to_string(gpioPin) + "\n";
+//	AppendLog(StringToLPCWSTR(triggerLog));
+
+void TriggerOff(UINT gpioPin)
+{
+    std::string triggerLog = "TriggerOff: gpioPin = " + std::to_string(gpioPin) + "\n";
+    AppendLog(StringToLPCWSTR(triggerLog));
 
 	if (!f_QATESTING) {
 		AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));

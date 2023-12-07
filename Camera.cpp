@@ -422,7 +422,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		long long timeMillisCount2 = timeMillis2.count();
 
 		ProcessUnit* unit = (ProcessUnit*)args;
-		struct message msg;
+		struct httpMsg msg;
 		msg.pipelineCode = pipelineCode;
 		msg.processesCode = unit->processesCode;
 		msg.processesTemplateCode = unit->processesTemplateCode;
