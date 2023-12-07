@@ -8,7 +8,7 @@ enum MSG_TYPE_E {
 	MSG_TYPE_TEXT
 };
 
-struct message {
+struct httpMsg {
 	std::string pipelineCode;
 	std::string processesCode;
 	std::string processesTemplateCode;
@@ -22,14 +22,19 @@ struct message {
 	std::string text;
 };
 
-class MessageQueue {
+struct gpioMsg {
+	UINT gpioPin;
+	int message;
+};
+
+template<class T> class MessageQueue {
 public:
-	void push(const struct message& msg) {
+	void push(const T& msg) {
 		std::unique_lock<std::mutex> lock(_mutex);
 		_queue.push(msg);
 		_cv.notify_one();
 	}
-	void wait(struct message& msg) {
+	void wait(T& msg) {
 		std::unique_lock<std::mutex> lock(_mutex);
 		while (!_queue.size()) _cv.wait(lock);
 		msg = _queue.front();
@@ -41,13 +46,13 @@ public:
 	}
 private:
 	std::mutex _mutex;
-	std::queue<struct message> _queue;
+	std::queue<T> _queue;
 	std::condition_variable _cv;
 };
 
 class Singleton {
 public:
-	static MessageQueue& instance()
+	static MessageQueue<struct httpMsg>& instance()
 	{
 		static Singleton _singleton;
 		return _singleton._mesque;
@@ -57,5 +62,5 @@ private:
 	Singleton(const Singleton&);
 	Singleton& operator=(const Singleton&);
 	~Singleton() {};
-	MessageQueue _mesque;
+	MessageQueue<struct httpMsg> _mesque;
 };
