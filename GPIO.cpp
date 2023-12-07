@@ -210,7 +210,7 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 				//				lastChange[i] = timeMillisCount;
 			}
 		}
-		Sleep(requiredDur);
+		//Sleep(requiredDur);
 	}
 
 //	MessageBox(NULL, L"GPIOÏß³Ì½áÊø!", L"GPIO", MB_OK);
