@@ -5,6 +5,7 @@
 #include <string>
 #include "Uhi.h"
 #include "MessageQueue.h"
+#include "Log.h"
 
 extern void AppendLog(LPCWSTR text);
 extern LPCWSTR StringToLPCWSTR(const std::string& s);
@@ -177,6 +178,8 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 */
 // ´¥·¢
 				if (gpio->msgmap.find(i) != gpio->msgmap.end()) {
+					std::string Log1 = "Gpio " + std::to_string(i) + " triggered!";
+					log_info(Log1);
 					auto now = std::chrono::system_clock::now();
 					auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 					long long timeMillisCount = timeMillis.count();

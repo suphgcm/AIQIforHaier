@@ -3,6 +3,7 @@
 #include <chrono>
 #include <thread>
 #include <windows.h>
+#include "Log.h"
 
 extern void AppendLog(LPCWSTR text);
 extern LPCWSTR StringToLPCWSTR(const std::string& s);
@@ -205,6 +206,7 @@ bool CodeReader::SetValuesForInited(
 	float exposureTime, float acquisitionFrameRate, float gain, int acquisitionBurstFrameCount, 
 	int lightSelectorEnable, int currentPosition
 ) {
+	log_info("Scancoder code: " + e_deviceCode + ": Start set scancoder parameter!");
 	if (!m_isInited) {
 		return false;
 	}
@@ -212,7 +214,7 @@ bool CodeReader::SetValuesForInited(
 	// 设置曝光时间
 	int nRet = MV_CODEREADER_SetFloatValue(m_handle, "ExposureTime", exposureTime);
 	if (nRet != MV_CODEREADER_OK) {
-		printf("Set ExposureTime fail! nRet [0x%x]\n", nRet);
+		log_error("Scancoder code: " + e_deviceCode + ": Set ExposureTime failed! nRet=" + std::to_string(nRet));
 		return false;
 	}
 	m_exposureTime = exposureTime;
@@ -220,7 +222,7 @@ bool CodeReader::SetValuesForInited(
 	// 设置采集帧率
 	nRet = MV_CODEREADER_SetFloatValue(m_handle, "AcquisitionFrameRate", acquisitionFrameRate);
 	if (nRet != MV_CODEREADER_OK) {
-		printf("Set AcquisitionFrameRate fail! nRet [0x%x]\n", nRet);
+		log_error("Scancoder code: " + e_deviceCode + ": Set AcquisitionFrameRate failed! nRet=" + std::to_string(nRet));
 		return false;
 	}
 	m_acquisitionFrameRate = acquisitionFrameRate;
@@ -228,7 +230,7 @@ bool CodeReader::SetValuesForInited(
 	// 设置曝光增益，请先关闭自动曝光增益否则失败
 	nRet = MV_CODEREADER_SetFloatValue(m_handle, "Gain", gain);
 	if (nRet != MV_CODEREADER_OK) {
-		printf("Set Gain fail! nRet [0x%x]\n", nRet);
+		log_error("Scancoder code: " + e_deviceCode + ": Set Gain fail! nRet=" + std::to_string(nRet));
 		return false;
 	}
 	m_gain = gain;
@@ -245,10 +247,11 @@ bool CodeReader::SetValuesForInited(
 	}
 	else {
 		printf("Light arg invalid! nRet [0x%x]\n", nRet);
+		log_warn("Scancoder code: " + e_deviceCode + ": Light enable parameter is invalid");
 		return false;
 	}
 	if (nRet != MV_CODEREADER_OK) {
-		printf("Set light fail! nRet [0x%x]\n", nRet);
+		log_error("Scancoder code: " + e_deviceCode + ": Set light fail! nRet=" + std::to_string(nRet));
 		return false;
 	}
 	m_lightSelectorEnable = lightSelectorEnable;
@@ -260,7 +263,7 @@ bool CodeReader::SetValuesForInited(
 	//	// return false;
 	//}
 	m_currentPosition = currentPosition;
-
+	log_info("Scancoder code: " + e_deviceCode + ": Success set scancoder config parameter");
 	return true;
 }
 
@@ -344,8 +347,9 @@ bool CodeReader::StopGrabbing() {
 
 int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 	codes.clear();
-	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {	
-	    MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
+	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
+		log_info("Scancoder code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
+		MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
 	    memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
 	    unsigned char* pData = NULL;
 
@@ -357,12 +361,14 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 		int nRet = MV_CODEREADER_SetCommandValue(m_handle, "TriggerSoftware");
 		if (MV_CODEREADER_OK != nRet)
 		{
+			log_error("Camera code: " + e_deviceCode + ": Set Software Once failed! nRet=" + std::to_string(nRet));
 			printf("Set Software Once failed! nRet [0x%x]\n", nRet);
 			continue;
 		}
 
 		nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 1000);
 		if (nRet != MV_CODEREADER_OK) {
+			log_error("Camera code: " + e_deviceCode + ": Get one frame failed! nRet=" + std::to_string(nRet));
 			printf("No data[0x%x]\n", nRet);
 			continue;
 		}
@@ -385,6 +391,7 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 //			}
 		}
 
+		log_info("Scancoder code: " + e_deviceCode + ": Frame " + std::to_string(i) + " end!");
 		if (!codes.empty()) {
 			break;
 		}
