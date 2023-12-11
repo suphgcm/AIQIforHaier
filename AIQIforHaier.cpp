@@ -22,6 +22,7 @@
 #include <sstream>
 #include "MessageQueue.h"
 #include "WZSerialPort.h"
+#include "Log.h"
 #pragma comment(lib, "ws2_32.lib")
 
 #define MAX_LOADSTRING 100
@@ -243,6 +244,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	projDir.reserve(dirLen);
 	GetCurrentDirectoryA(dirLen, &projDir[0]);
 	HANDLE hClearLog = CreateThread(NULL, 0, CheckAndClearLog, NULL, 0, NULL);
+	log_init("AIQIForHaier","logs/rotating.txt", 1048576 * 50, 3);
 
 	// 初始化全局字符串
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -275,6 +277,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			DispatchMessage(&msg);
 		}
 	}
+
+	log_finish();
 	return (int)msg.wParam;
 }
 
@@ -1041,6 +1045,7 @@ void GetConfig(/*HWND hWnd*/) {
 
 DWORD __stdcall InfraredRemoteCtlThread(LPVOID lpParam) {
 	CloseHandle(GetCurrentThread());
+	log_info("Infrared remote controler be called!");
 	WZSerialPort w;
 
 	char cmdI[] = { 0xFF,0x16,0x06,0x16,0x00,0x32,0xA6,0xEA,0x00,0x00,0xC0,0x20,0x00,0x80,0x80,0x00,0x00,0x00,0x0B, \
@@ -1103,6 +1108,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
 	long long timeMillisCount1 = timeMillis1.count();
 
+	log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
 	// 得到产品序列号前9位
 	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
 	std::vector<std::string> codereaderresults;
@@ -1111,15 +1117,17 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		if (it == deviceMap.end()) {
 			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
 			AppendLog(_T("光电开关故障\n"));
+			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
 			return 0;
 		}
 		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-		std::string logStr = "CodeReader " + CR->e_deviceCode + " called!" + std::to_string(CR->GetAcquisitionBurstFrameCount()) + "frames\n";
+		std::string logStr = "CodeReader " + CR->e_deviceCode + " called! " + std::to_string(CR->GetAcquisitionBurstFrameCount()) + " frames\n";
 		AppendLog(StringToLPCWSTR(logStr));
+		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
 		std::vector<std::string> results;
 		int crRet = CR->ReadCode(results);
 		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
-		logStr = "CodeReader ret: " + std::to_string(crRet) + "\n";
+		logStr = "CodeReader " + CR->e_deviceCode + " ret: " + std::to_string(crRet) + "\n";
 		AppendLog(StringToLPCWSTR(logStr));
 		if (!results.empty())
 		{
@@ -1129,6 +1137,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 
 	if (codereaderresults.empty()) {
 		AppendLog(_T("扫码结果为空！\n"));
+		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
 		return 0;
 	}
 	std::string productSn = "";
@@ -1141,8 +1150,10 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	}
 	if (productSn.length() < 13) {
 		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
+		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan  product sn code failed, product sn length less than 13!");
 		return 0;
 	}
+	log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
 
 	auto now2 = std::chrono::system_clock::now();
 	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
@@ -1157,11 +1168,13 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	if (productItem == productMap.end()) {
 		std::string logStr = "Product " + productSnCode + " does not exist!\n";
 		AppendLog(StringToLPCWSTR(logStr));
+		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
 		return 0;
 	}
 
 	std::string logStr = "Product " + productSn + " scanned!\n";
 	AppendLog(StringToLPCWSTR(logStr));
+	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + "Scaned!");
 
 	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
 	auto now3 = std::chrono::system_clock::now();
@@ -1230,13 +1243,6 @@ void TriggerOn(UINT gpioPin)
 		return;
 	}
 
-	// 进行串口通信
-	if (gpioPin == remoteCtrlPin) {
-		//CreateThread(NULL, 0, SerialCommunicationThread, NULL, 0, NULL);
-		
-		return;
-	}
-
 	// 1. triggerMap 把引脚和扫码枪对应
 	// 2. 根据扫码枪扫到的码，确定产品
 	// 3. 根据产品确定执行的 process
@@ -1294,7 +1300,6 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
 	return 0;
 }
 
-extern long long pin2TriggerTime;
 DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//DWORD tid = GetCurrentThreadId();
 	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
@@ -1306,9 +1311,8 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//add replace productionSnModel / to _
 	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
 
-	//path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
-		
-	//path += "\\" + pipelineCode + "\\" + tmpProductionSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
+
+	path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
 
 	nlohmann::json args;
 	args["pipelineCode"] = pipelineCode;
@@ -1325,14 +1329,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
 	case 2: { // Camera
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
-		if (devicecm->e_deviceCode == "DC100008")
-		{
-			auto now = std::chrono::system_clock::now();
-			auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-			long long timeMillisCount = timeMillis.count();
-			std::string LogX = "pin 2 trriger to call camera time = " + std::to_string(timeMillisCount - pin2TriggerTime) + "\n";
-			AppendLog(StringToLPCWSTR(LogX));
-		}
+		log_info("Camera " + devicecm->e_deviceCode + " be called!");
 		Sleep(200);
 		devicecm->Lock();
 		devicecm->SetValuesByJson(unit->parameter);
@@ -1342,19 +1339,11 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	}
 	case 3: { // ScanningGun
 		CodeReader* deviceCR = dynamic_cast<CodeReader*>(unit->eq);
-		if (deviceCR->e_deviceCode == "DC100009")
-		{
-			auto now = std::chrono::system_clock::now();
-			auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-			long long timeMillisCount = timeMillis.count();
-			std::string LogX = "pin 2 trriger to call scan gun time = " + std::to_string(timeMillisCount - pin2TriggerTime) + "\n";
-			AppendLog(StringToLPCWSTR(LogX));
-		}
+		log_info("Scan coder " + deviceCR->e_deviceCode + " be called!");
 		deviceCR->SetValuesByJson(unit->parameter);
 		std::vector<std::string> codeRes;
 		int crRet = deviceCR->ReadCode(codeRes);
-		std::string logStr = "device code:" + unit->deviceCode + ", called ret:"+ std::to_string(crRet) + ", code count: " + std::to_string(codeRes.size()) + "\n";
-		AppendLog(StringToLPCWSTR(logStr));
+
 //		args["content"] = codeRes;
 //		std::ofstream file(path + "\\requestArgs.json");
 //		file << args.dump(4) << std::endl;
@@ -1379,9 +1368,8 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		break;
 	}
 	case 4: { // Speaker
-		AppendLog(L"Speaker triggers.\n");
 		AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(unit->eq);
-
+		log_info("Audio device " + audioDevice->e_deviceCode + " be called!");
 		// 初始化
 		int ret = audioDevice->Init(); // todo: 解决未找到音频设备时抛出异常的问题
 

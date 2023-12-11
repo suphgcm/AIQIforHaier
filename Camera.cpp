@@ -8,6 +8,7 @@
 #include <thread>
 #include "MessageQueue.h"
 #include "product.h"
+#include "Log.h"
 
 extern void AppendLog(LPCWSTR text);
 extern LPCWSTR StringToLPCWSTR(const std::string& s);
@@ -229,6 +230,7 @@ bool Camera::SetValuesForUninited(
 bool Camera::SetValuesForInited(
 	float exposureTime, float acquisitionFrameRate, float gain, int acquisitionBurstFrameCount, int compressionQuality, int cameraInterval
 ) {
+	log_info("Camera code: " + e_deviceCode + ": Start set camera parameter!");
 	if (!m_isInited) {
 		return false;
 	}
@@ -236,7 +238,7 @@ bool Camera::SetValuesForInited(
 	// 设置曝光时间
 	int nRet = MV_CC_SetFloatValue(m_handle, "ExposureTime", exposureTime);
 	if (nRet != MV_OK) {
-		printf("Set ExposureTime fail! nRet [0x%x]\n", nRet);
+		log_error("Camera code: " + e_deviceCode + ": Set exposure time failed! Ret=" + std::to_string(nRet));
 		return false;
 	}
 	m_exposureTime = exposureTime;
@@ -244,7 +246,7 @@ bool Camera::SetValuesForInited(
 	// 设置采集帧率
 	nRet = MV_CC_SetFloatValue(m_handle, "AcquisitionFrameRate", acquisitionFrameRate);
 	if (nRet != MV_OK) {
-		printf("Set AcquisitionFrameRate fail! nRet [0x%x]\n", nRet);
+		log_error("Camera code: " + e_deviceCode + ": Set acquisition frame rate fail! Ret=" + std::to_string(nRet));
 		return false;
 	}
 	m_acquisitionFrameRate = acquisitionFrameRate;
@@ -252,6 +254,7 @@ bool Camera::SetValuesForInited(
 	// 设置曝光增益
 	nRet = MV_CC_SetFloatValue(m_handle, "Gain", gain);
 	if (nRet != MV_OK) {
+		log_error("Camera code: " + e_deviceCode + ": Set gain fail! Ret=" + std::to_string(nRet));
 		printf("Set Gain fail! nRet [0x%x]\n", nRet);
 		return false;
 	}
@@ -265,7 +268,7 @@ bool Camera::SetValuesForInited(
 
 	// 拍照间隔
 	m_cameraInterval = cameraInterval;
-
+	log_info("Camera code: " + e_deviceCode + ": Success set camera config parameter");
 	return true;
 }
 
@@ -363,12 +366,8 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	//if (!CreateRecursiveDirectory(path)) {
 	//	return false;
 	//}
-
-	if (m_acquisitionBurstFrameCount > 1) {
-		printf("m_acquisitionBurstFrameCount > 1");
-	}
-
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
+		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
 		MV_FRAME_OUT stOutFrame = { 0 };
 
 		//// 打开软件触发
@@ -386,6 +385,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			swprintf(buffer, 256, L"Get Image Buffer fail! nRet [0x%x]\n", nRet);
 			MessageBox(NULL, buffer, L"CameraError", MB_OK);
 			printf("Get Image Buffer fail! nRet [0x%x]\n", nRet);
+			log_error("Camera code: " + e_deviceCode + ": Get image buffer failed! " + "Ret=" + std::to_string(nRet));
 			return false;
 		}
 		auto now1 = std::chrono::system_clock::now();
@@ -415,6 +415,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			printf("MV_CC_SaveImageEx3 fail! nRet [0x%x]\n", nRet);
 			delete[] to_jpeg.pImageBuffer; // 释放
 			MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
+			log_error("Camera code: " + e_deviceCode + ": translate image format to jpeg failed! " + "Ret=" + std::to_string(nRet));
 			return false;
 		}
 		auto now2 = std::chrono::system_clock::now();
@@ -437,18 +438,18 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		auto now3 = std::chrono::system_clock::now();
 		auto timeMillis3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
 		long long timeMillisCount3 = timeMillis3.count();
-		std::string Log = "Camera Code = " + e_deviceCode + " ,GetImageBuffer Time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
+		std::string Log = "Camera Code = " + e_deviceCode + ", GetImageBuffer Time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
 		AppendLog(StringToLPCWSTR(Log));
-		std::string Log1 = "Camera Code = " + e_deviceCode + " ,Format to jpeg Time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
+		log_info(Log);
+		std::string Log1 = "Camera Code = " + e_deviceCode + ", Format to jpeg Time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
 		AppendLog(StringToLPCWSTR(Log1));
-		std::string Log2 = "Camera Code = " + e_deviceCode + " ,Push message Time = " + std::to_string(timeMillisCount3 - timeMillisCount2) + "\n";
+		log_info(Log1);
+		std::string Log2 = "Camera Code = " + e_deviceCode + ", Push message Time = " + std::to_string(timeMillisCount3 - timeMillisCount2) + "\n";
 		AppendLog(StringToLPCWSTR(Log2));
-		std::string Log3 = "camera interval = " + std::to_string(m_cameraInterval) + "\n";
+		log_info(Log2);
+		std::string Log3 = "Camera Code = "+ e_deviceCode +", camera interval = " + std::to_string(m_cameraInterval) + "\n";
 		AppendLog(StringToLPCWSTR(Log3));
-		std::string Log4 = "processTemplateCode = " + unit->processesTemplateCode + " ,Image Buffer Width: " + std::to_string(stOutFrame.stFrameInfo.nWidth) +
-			" ,Height: " + std::to_string(stOutFrame.stFrameInfo.nHeight) + " ,FrameLength: " + std::to_string(stOutFrame.stFrameInfo.nFrameLen) + " ,Jpeg frame length:" +
-			std::to_string(to_jpeg.nImageLen) + "\n";
-		AppendLog(StringToLPCWSTR(Log4));
+
 /*
 		//将图片从内存保存到本地中
 		MV_SAVE_IMAGE_TO_FILE_PARAM_EX file;
@@ -492,7 +493,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
 			printf("Free Image Buffer fail! nRet [0x%x]\n", nRet);
+			log_error("Camera code: " + e_deviceCode + ": Free image buffer failed! " + "Ret=" + std::to_string(nRet));
 		}
+
+		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " end!");
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(m_cameraInterval));
 	}
