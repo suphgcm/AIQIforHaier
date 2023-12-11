@@ -445,6 +445,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		AppendLog(StringToLPCWSTR(Log2));
 		std::string Log3 = "camera interval = " + std::to_string(m_cameraInterval) + "\n";
 		AppendLog(StringToLPCWSTR(Log3));
+		std::string Log4 = "processTemplateCode = " + unit->processesTemplateCode + " ,Image Buffer Width: " + std::to_string(stOutFrame.stFrameInfo.nWidth) +
+			" ,Height: " + std::to_string(stOutFrame.stFrameInfo.nHeight) + " ,FrameLength: " + std::to_string(stOutFrame.stFrameInfo.nFrameLen) + " ,Jpeg frame length:" +
+			std::to_string(to_jpeg.nImageLen) + "\n";
+		AppendLog(StringToLPCWSTR(Log4));
 /*
 		//将图片从内存保存到本地中
 		MV_SAVE_IMAGE_TO_FILE_PARAM_EX file;

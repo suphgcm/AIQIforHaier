@@ -440,6 +440,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
 // 向编辑栏输出日志
 void AppendLog(LPCWSTR text) {
 	// 获取当前文本长度，以便我们知道在哪里插入新文本
+//	return;
 	int index = GetWindowTextLength(hEdit);
 	SendMessage(hEdit, EM_SETSEL, (WPARAM)index, (LPARAM)index);
 	SendMessage(hEdit, EM_REPLACESEL, 0, (LPARAM)text);
@@ -1305,7 +1306,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//add replace productionSnModel / to _
 	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
 
-	path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
+	//path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
 		
 	//path += "\\" + pipelineCode + "\\" + tmpProductionSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
 
@@ -1385,7 +1386,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		int ret = audioDevice->Init(); // todo: 解决未找到音频设备时抛出异常的问题
 
 		// 录制 todo: 考虑录制时间
-		std::string recordFile = path + "\\audio_data.raw";
+		std::string recordFile = path + "\\temp" + "\\audio_data.raw";
 		std::string logStr = "Record: ";
 		logStr.append(recordFile).append("\n");
 		AppendLog(StringToLPCWSTR(logStr));
@@ -1396,8 +1397,8 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		AppendLog(StringToLPCWSTR(logStr));
 
 		// 音频文件处理
-		std::string leftFile = path + "\\left.pcm";
-		std::string rightFile = path + "\\right.pcm";
+		std::string leftFile = path + "\\temp" + "\\left.pcm";
+		std::string rightFile = path + "\\temp" + "\\right.pcm";
 		logStr = "leftFile: ";
 		logStr.append(leftFile).append("\n");
 		AppendLog(StringToLPCWSTR(logStr));

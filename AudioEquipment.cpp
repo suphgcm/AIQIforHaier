@@ -53,6 +53,8 @@ int AudioEquipment::Init() {
 		return m_deviceIndex;
 	}
 	cout << "Get device name = " << m_deviceName << ", index = " << m_deviceIndex << endl;
+
+	return 0;
 }
 
 PaError AudioEquipment::Terminate() {
