@@ -361,14 +361,14 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 		int nRet = MV_CODEREADER_SetCommandValue(m_handle, "TriggerSoftware");
 		if (MV_CODEREADER_OK != nRet)
 		{
-			log_error("Camera code: " + e_deviceCode + ": Set Software Once failed! nRet=" + std::to_string(nRet));
+			log_error("Scancoder code: " + e_deviceCode + ": Set Software Once failed! nRet=" + std::to_string(nRet));
 			printf("Set Software Once failed! nRet [0x%x]\n", nRet);
 			continue;
 		}
 
 		nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 1000);
 		if (nRet != MV_CODEREADER_OK) {
-			log_error("Camera code: " + e_deviceCode + ": Get one frame failed! nRet=" + std::to_string(nRet));
+			log_error("Scancoder code: " + e_deviceCode + ": Get one frame failed! nRet=" + std::to_string(nRet));
 			printf("No data[0x%x]\n", nRet);
 			continue;
 		}

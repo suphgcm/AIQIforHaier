@@ -444,7 +444,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
 // 向编辑栏输出日志
 void AppendLog(LPCWSTR text) {
 	// 获取当前文本长度，以便我们知道在哪里插入新文本
-//	return;
+	return;
 	int index = GetWindowTextLength(hEdit);
 	SendMessage(hEdit, EM_SETSEL, (WPARAM)index, (LPARAM)index);
 	SendMessage(hEdit, EM_REPLACESEL, 0, (LPARAM)text);
@@ -1092,6 +1092,11 @@ DWORD __stdcall InfraredRemoteCtlThread(LPVOID lpParam) {
 	return 0;
 }
 
+struct UnitWorkPara
+{
+	bool sameProductSnCode;
+	ProcessUnit* procUnit;
+};
 
 DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	CloseHandle(GetCurrentThread());
@@ -1186,6 +1191,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		AppendLog(L"map2bTest init error!");
 		return 0;
 	}
+    std::string lastProductSnCode = it->second->productSnCode;
 	it->second->pinNumber = gpioPin;
 	it->second->productSn = productSn;
 	it->second->productSnCode = productSnCode;
@@ -1209,8 +1215,17 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		// 加句柄队列
 		if ((runla - start) >= tmpFind->laterncy) {
 			tmpFind->productSn = myp2btest->productSn;
-
-			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, tmpFind, 0, NULL);
+			struct UnitWorkPara* param = new(struct UnitWorkPara);
+			if (lastProductSnCode == productSnCode)
+			{
+				param->sameProductSnCode = TRUE;
+			}
+			else
+			{
+				param->sameProductSnCode = FALSE;
+			}
+			param->procUnit = tmpFind;
+			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, param, 0, NULL);
 			handles.push_back(hUnitWork);
 			tmpFind = tmpFind->nextunit;
 		}
@@ -1304,9 +1319,10 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//DWORD tid = GetCurrentThreadId();
 	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
 	//AppendLog(StringToLPCWSTR(logStr));
-
-	ProcessUnit* unit = static_cast<ProcessUnit*>(lpParam);
-
+	struct UnitWorkPara *param = static_cast<struct UnitWorkPara *>(lpParam);
+	ProcessUnit* unit = param->procUnit;
+	bool sameProductSn = param->sameProductSnCode;
+	delete(param);
 	std::string path = "D:\\AIQIforHaier";
 	//add replace productionSnModel / to _
 	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
@@ -1332,7 +1348,10 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		log_info("Camera " + devicecm->e_deviceCode + " be called!");
 		Sleep(200);
 		devicecm->Lock();
-		devicecm->SetValuesByJson(unit->parameter);
+		if (sameProductSn == FALSE)
+		{
+			devicecm->SetValuesByJson(unit->parameter);
+		}
 		devicecm->GetImage(path, unit);
 		devicecm->UnLock();
 		break;
