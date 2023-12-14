@@ -380,7 +380,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		if (nRet != MV_OK) {
 			wchar_t buffer[256];
 			swprintf(buffer, 256, L"Get Image Buffer fail! nRet [0x%x]\n", nRet);
-			MessageBox(NULL, buffer, L"CameraError", MB_OK);
+			//MessageBox(NULL, buffer, L"CameraError", MB_OK);
 			printf("Get Image Buffer fail! nRet [0x%x]\n", nRet);
 			log_error("Camera code: " + e_deviceCode + ": Get image buffer failed! " + "Ret=" + std::to_string(nRet));
 			return false;

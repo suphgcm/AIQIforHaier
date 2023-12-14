@@ -244,7 +244,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	projDir.reserve(dirLen);
 	GetCurrentDirectoryA(dirLen, &projDir[0]);
 	HANDLE hClearLog = CreateThread(NULL, 0, CheckAndClearLog, NULL, 0, NULL);
-	log_init("AIQIForHaier","logs/rotating.txt", 1048576 * 50, 3);
+	log_init("AIQIForHaier","D:/AIQIforHaier/logs/rotating.txt", 1048576 * 50, 3);
 
 	// 初始化全局字符串
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -1346,7 +1346,6 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	case 2: { // Camera
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
 		log_info("Camera " + devicecm->e_deviceCode + " be called!");
-		Sleep(200);
 		devicecm->Lock();
 		if (sameProductSn == FALSE)
 		{
