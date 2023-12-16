@@ -1330,7 +1330,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
 
 
-	path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
+	//path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
 
 	nlohmann::json args;
 	args["pipelineCode"] = pipelineCode;
