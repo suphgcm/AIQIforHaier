@@ -1,3 +1,4 @@
+#include <mutex>
 #include "CodeReader.h"
 #include <string>
 #include <chrono>
@@ -407,3 +408,9 @@ int CodeReader::GetAcquisitionBurstFrameCount()
 	return m_acquisitionBurstFrameCount;
 }
 
+void CodeReader::Lock() {
+	m_mutex.lock();
+}
+void CodeReader::UnLock() {
+	m_mutex.unlock();
+}

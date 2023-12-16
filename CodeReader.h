@@ -23,6 +23,8 @@ private:
     bool m_isGot = false;
     bool m_isInited = false;
     bool m_isGrabbing = false;
+    std::mutex m_mutex;
+
 public:
     CodeReader() {}
     CodeReader(std::string IP_ADDR, std::string deviceTypeId, std::string deviceTypeName, std::string deviceTypeCode, std::string deviceCode, std::string deviceName) :
@@ -45,5 +47,7 @@ public:
     
     int GetAcquisitionBurstFrameCount();
     void* GetHandle();
+    void Lock();
+    void UnLock();
     // Ö´ÐÐË³Ðò£ºSetValuesByJson -> Init -> SetValuesByJson -> StartGrabbing -> ReadCode -> SetValuesByJson -> SetValuesForInited -> StartGrabbing -> ReadCode -> StopGrabbing -> Destroy
 };

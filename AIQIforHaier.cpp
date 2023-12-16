@@ -1130,7 +1130,9 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		AppendLog(StringToLPCWSTR(logStr));
 		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
 		std::vector<std::string> results;
+		CR->Lock();
 		int crRet = CR->ReadCode(results);
+		CR->UnLock();
 		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
 		logStr = "CodeReader " + CR->e_deviceCode + " ret: " + std::to_string(crRet) + "\n";
 		AppendLog(StringToLPCWSTR(logStr));
@@ -1358,10 +1360,14 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	case 3: { // ScanningGun
 		CodeReader* deviceCR = dynamic_cast<CodeReader*>(unit->eq);
 		log_info("Scan coder " + deviceCR->e_deviceCode + " be called!");
-		deviceCR->SetValuesByJson(unit->parameter);
+		deviceCR->Lock();
+		if (sameProductSn == FALSE)
+		{
+			deviceCR->SetValuesByJson(unit->parameter);
+		}
 		std::vector<std::string> codeRes;
 		int crRet = deviceCR->ReadCode(codeRes);
-
+		deviceCR->UnLock();
 //		args["content"] = codeRes;
 //		std::ofstream file(path + "\\requestArgs.json");
 //		file << args.dump(4) << std::endl;
