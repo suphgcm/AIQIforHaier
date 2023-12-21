@@ -108,55 +108,76 @@ void HttpPost(struct httpMsg &msg)
 		hConnect = WinHttpConnect(hSession, L"192.168.0.189",
 			HTTP_POST_PORT, 0);
 
+	//Define body
+	std::vector<char> body;
+	std::wstring headers;
+	std::wstring objectName;
+	std::wstring methods;
+	if (msg.type == MSG_TYPE_STOP) {
+		methods = L"POST";
+
+		int wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, NULL, 0);
+		wchar_t* piplineCode = new wchar_t[wideCharSize];
+		MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, piplineCode, wideCharSize);
+
+		wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, NULL, 0);
+		wchar_t* productSn = new wchar_t[wideCharSize];
+		MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, productSn, wideCharSize);
+
+		objectName = L"/stopFlag?pipelineCode=" + *piplineCode;
+		objectName += L"&productSn=" + *productSn;
+
+		delete[] piplineCode;
+		delete[] productSn ;
+	}
+	else 
+	{
+		methods = L"POST";
+		objectName = L"/inspection/upload";
+		headers = L"Content-Type:multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
+
+		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+
+		auto now = std::chrono::system_clock::now();
+		auto duration = now.time_since_epoch();
+		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+		std::string imageName = std::to_string(milliseconds) + ".jpeg";
+
+		if (msg.type == MSG_TYPE_PICTURE) {
+			// Add picture
+			AddBinaryPart(body, msg.imageBuffer, msg.imageLen, boundary, imageName);
+		}
+		else {
+			// Add TEXT
+			std::string partStart = "--" + boundary + "\r\n";
+			body.insert(body.end(), partStart.begin(), partStart.end());
+			AddTextPart(body, msg.text, boundary, "content");
+		}
+
+		std::string sampleTime = "123456789";
+		// Add text part
+		AddTextPart(body, msg.pipelineCode, boundary, "pipelineCode");
+		AddTextPart(body, msg.processesCode, boundary, "processesCode");
+		AddTextPart(body, msg.processesTemplateCode, boundary, "processesTemplateCode");
+		AddTextPart(body, msg.productSn, boundary, "productSn");
+		AddTextPart(body, msg.productSnCode, boundary, "productSnCode");
+		AddTextPart(body, msg.productSnModel, boundary, "productSnModel");
+		AddTextPart(body, sampleTime, boundary, "sampleTime");
+
+		body.pop_back();
+		body.pop_back();
+		std::string End = "--\r\n";
+		body.insert(body.end(), End.begin(), End.end());
+	
+	}
+
 	// Create an HTTP request handle.
 	if (hConnect)
-		hRequest = WinHttpOpenRequest(hConnect, L"POST",
-			L"/inspection/upload",
+		hRequest = WinHttpOpenRequest(hConnect, (LPCWSTR)&methods,
+			(LPCWSTR)&objectName,
 			NULL, WINHTTP_NO_REFERER,
 			WINHTTP_DEFAULT_ACCEPT_TYPES,
 			0);
-
-	// Define boundary and headers
-	std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-	std::wstring headers = L"Content-Type:multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-	auto now = std::chrono::system_clock::now();
-	auto duration = now.time_since_epoch();
-	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-	std::string imageName = std::to_string(milliseconds) + ".jpeg";
-
-    //Define body
-	std::vector<char> body;
-
-	if (msg.type == MSG_TYPE_PICTURE) {
-		// Add picture
-		AddBinaryPart(body, msg.imageBuffer, msg.imageLen, boundary, imageName);
-	}
-	else {
-		// Add TEXT
-		std::string partStart = "--" + boundary + "\r\n";
-		body.insert(body.end(), partStart.begin(), partStart.end());
-		AddTextPart(body, msg.text, boundary, "content");
-	}
-
-//	std::stringstream ss;
-    std::string sampleTime = "123456789";
-//	ss << msg.sampleTime;
-//	ss >> sampleTime;
-
-	// Add text part
-	AddTextPart(body, msg.pipelineCode, boundary, "pipelineCode");
-	AddTextPart(body, msg.processesCode, boundary, "processesCode");
-	AddTextPart(body, msg.processesTemplateCode, boundary, "processesTemplateCode");
-	AddTextPart(body, msg.productSn, boundary, "productSn");
-	AddTextPart(body, msg.productSnCode, boundary, "productSnCode");
-	AddTextPart(body, msg.productSnModel, boundary, "productSnModel");
-	AddTextPart(body, sampleTime, boundary, "sampleTime");
-
-	body.pop_back();
-	body.pop_back();
-	std::string End = "--\r\n";
-	body.insert(body.end(), End.begin(), End.end());
 
 	// Send a request.
 	if (hRequest)
@@ -1243,6 +1264,16 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		CloseHandle(handle);
 	}
 
+	/*最后一个gpio引脚触发事件处理结束后，发送检测结束标志*/
+	if (gpioPin == 1)
+	{
+		struct httpMsg msg;
+		msg.pipelineCode = pipelineCode;
+		msg.productSn = productSn;
+		msg.type = MSG_TYPE_STOP;
+
+		Singleton::instance().push(msg);
+	}
 	return 0;
 }
 
