@@ -808,6 +808,8 @@ void GetConfig(/*HWND hWnd*/) {
 		Sleep(1000);
 	}
 
+	remove(flagpath.c_str());
+
 	// 读取 pipelineConfig.json
 	//std::string configfile = ".\\productconfig\\pipelineConfig.json";
 	std::string configfile = "D:\\AIQIforHaier";
