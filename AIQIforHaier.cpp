@@ -801,8 +801,8 @@ void GetConfig(/*HWND hWnd*/) {
 	while (INVALID_FILE_ATTRIBUTES == GetFileAttributes(StringToWstring(flagpath).c_str())) {
 		now = std::chrono::system_clock::now();
 		auto duration_now_in_seconds_now = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-		if ((duration_now_in_seconds_now.count() - duration_in_seconds.count()) > 10) {
-			AppendLog(_T("等待配置文件超时，超时时间为10秒\n"));
+		if ((duration_now_in_seconds_now.count() - duration_in_seconds.count()) > 20) {
+			AppendLog(_T("等待配置文件超时，超时时间为20秒\n"));
 			return;
 		}
 		Sleep(1000);
@@ -1403,7 +1403,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		logStr.append(recordFile).append("\n");
 		AppendLog(StringToLPCWSTR(logStr));
 
-		int audioRet = audioDevice->PlayAndRecord(recordFile, 5);
+		int audioRet = audioDevice->PlayAndRecord(recordFile, 8);
 		logStr = "Ret: ";
 		logStr.append(std::to_string(audioRet)).append("\n");
 		AppendLog(StringToLPCWSTR(logStr));
