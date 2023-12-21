@@ -5,7 +5,8 @@
 
 enum MSG_TYPE_E {
 	MSG_TYPE_PICTURE,
-	MSG_TYPE_TEXT
+	MSG_TYPE_TEXT,
+	MSG_TYPE_STOP
 };
 
 struct httpMsg {
