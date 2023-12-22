@@ -124,8 +124,8 @@ void HttpPost(struct httpMsg &msg)
 		wchar_t* productSn = new wchar_t[wideCharSize];
 		MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, productSn, wideCharSize);
 
-		objectName = L"/stopFlag?pipelineCode=" + *piplineCode;
-		objectName += L"&productSn=" + *productSn;
+		objectName = L"/stopFlag?pipelineCode=" + (std::wstring)piplineCode;
+		objectName += L"&productSn=" + (std::wstring)productSn;
 
 		delete[] piplineCode;
 		delete[] productSn ;
@@ -173,8 +173,8 @@ void HttpPost(struct httpMsg &msg)
 
 	// Create an HTTP request handle.
 	if (hConnect)
-		hRequest = WinHttpOpenRequest(hConnect, (LPCWSTR)&methods,
-			(LPCWSTR)&objectName,
+		hRequest = WinHttpOpenRequest(hConnect, methods.c_str(),
+			objectName.c_str(),
 			NULL, WINHTTP_NO_REFERER,
 			WINHTTP_DEFAULT_ACCEPT_TYPES,
 			0);
