@@ -1,7 +1,7 @@
 ﻿// AIQIforHaier.cpp : 定义应用程序的入口点。
 
 #define _CRT_SECURE_NO_WARNINGS
-
+#define NOMINMAX
 #include "framework.h"
 #include "AIQIforHaier.h"
 #include "framework.h"
@@ -20,9 +20,15 @@
 #include <list>
 #include <WinHttp.h>
 #include <sstream>
+#include <thread>
+#include <chrono>
+#include <limits>
+
 #include "MessageQueue.h"
 #include "WZSerialPort.h"
 #include "Log.h"
+#include "httplib.h"
+
 #pragma comment(lib, "ws2_32.lib")
 
 #define MAX_LOADSTRING 100
@@ -115,20 +121,31 @@ void HttpPost(struct httpMsg &msg)
 	std::wstring methods;
 	if (msg.type == MSG_TYPE_STOP) {
 		methods = L"POST";
+		/*
+				int wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, NULL, 0);
+				wchar_t* piplineCode = new wchar_t[wideCharSize];
+				MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, piplineCode, wideCharSize);
 
-		int wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, NULL, 0);
-		wchar_t* piplineCode = new wchar_t[wideCharSize];
-		MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, piplineCode, wideCharSize);
+				wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, NULL, 0);
+				wchar_t* productSn = new wchar_t[wideCharSize];
+				MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, productSn, wideCharSize);
 
-		wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, NULL, 0);
-		wchar_t* productSn = new wchar_t[wideCharSize];
-		MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, productSn, wideCharSize);
+				objectName = L"/inspection/stopFlag?pipelineCode=" + (std::wstring)piplineCode;
+				objectName += L"&productSn=" + (std::wstring)productSn;
 
-		objectName = L"/stopFlag?pipelineCode=" + (std::wstring)piplineCode;
-		objectName += L"&productSn=" + (std::wstring)productSn;
+				delete[] piplineCode;
+				delete[] productSn ;
+		*/
+		objectName = L"/inspection/stopFlag";
+		headers = L"Content-Type:application/json";
 
-		delete[] piplineCode;
-		delete[] productSn ;
+		nlohmann::json jsonObject;
+		jsonObject["pipelineCode"] = msg.pipelineCode.c_str();
+		jsonObject["productSn"] = msg.productSn.c_str();
+		std::string jsonStr = jsonObject.dump();
+		body.insert(body.end(), jsonStr.begin(), jsonStr.end());
+		
+		
 	}
 	else 
 	{
@@ -252,6 +269,24 @@ DWORD GpioMessageProcThread(LPVOID lpParam)
 	return 0;
 }
 
+DWORD HttpServer(LPVOID lpParam)
+{
+	httplib::Server svr;
+
+	svr.Post("/alarm", [](const httplib::Request& req, httplib::Response& res) {
+		log_info("Current device test failed, alarm!");
+        GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find("DC500001")->second);
+        deviceGPIO->SetPinLevel(5, 1);
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        deviceGPIO->SetPinLevel(5, 0);
+
+        res.set_content(req.body, "application/json");
+    });
+
+	svr.listen("127.0.0.1", 8080);
+	return 0;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	_In_opt_ HINSTANCE hPrevInstance,
 	_In_ LPWSTR    lpCmdLine,
@@ -280,7 +315,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
-
+	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
 	StartSelfTesting();
 	GetConfig();
 	f_QATESTING = true;

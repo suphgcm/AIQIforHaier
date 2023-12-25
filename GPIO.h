@@ -43,7 +43,7 @@ public:
 	void SetHwnd(HWND hwnd) { this->hwnd = hwnd; }
 	int Read(const int pinNumber, unsigned char& curState);
 	int ReadMultipleTimes(const char pinNumber, unsigned char& curState, const int times = 10);
-
+	void SetPinLevel(const char pinNumber, int level);
 	bool StartThread();
 	void StopThread();
 };

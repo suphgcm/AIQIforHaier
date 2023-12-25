@@ -125,6 +125,25 @@ int GPIO::ReadMultipleTimes(const char pinNumber, unsigned char& curState, const
 	return 0;
 }
 
+void GPIO::SetPinLevel(const char pinNumber, int level) {
+	GPIO_STATE state;
+	Uhi* hUhi = (Uhi*)m_handle;
+
+	if (level == 0){
+		state = GPIO_LOW;
+	} else {
+		state = GPIO_HIGH;
+	}
+	
+	bool ret = hUhi->SetGpioState(pinNumber, state);
+	if (ret != true) {
+		std::cerr << "getPinLevel failed: " << "-1" << std::endl;
+		return;
+	}
+
+	return;
+}
+
 bool GPIO::SetGpioParam(std::string deviceTypeId, std::string deviceTypeName, std::string deviceTypeCode,
 	std::string deviceName, HWND wInstnd, char* bios_id, int p_number, UINT BASEMSG) {
 	//equnit(deviceTypeId, deviceTypeName, deviceTypeCode, deviceCode, deviceName) , hwnd(wInstnd), m_bios_id(bios_id), m_number(p_number), GPIOBASEMSG(BASEMSG
