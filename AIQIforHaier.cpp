@@ -56,6 +56,26 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
 
+std::vector<char> readPCMFile(const std::string& filename) {
+    // 打开文件
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+
+    // 获取文件大小
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    // 创建一个向量来保存文件内容
+    std::vector<char> buffer(size);
+
+    // 读取文件
+    if (file.read(buffer.data(), size)) {
+        return buffer;
+    } else {
+        // 处理错误
+        throw std::runtime_error("Error reading file");
+    }
+}
+
 void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary, std::string name)
 {
 	std::string textPartStart = "Content-Disposition: form-data; name=\""+name+"\"\r\nContent-Type:text-plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
@@ -70,16 +90,16 @@ void AddTextPart(std::vector<char> &body, std::string &text, std::string &bounda
 	return;
 }
 
-void AddBinaryPart(std::vector<char>& body, unsigned char* imageBuffer, unsigned int imageLen, std::string& boundary, std::string imageName)
+void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int lengh, std::string& boundary, std::string fileName)
 {
 	// Add picture
-	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + imageName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
+	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + fileName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
 	std::vector<char> binaryData;
-	for (int i = 0; i < imageLen; i++)
+	for (int i = 0; i < lengh; i++)
 	{
-		binaryData.push_back(imageBuffer[i]);
+		binaryData.push_back(buffer[i]);
 	}
 	body.insert(body.end(), binaryData.begin(), binaryData.end());
 
@@ -138,20 +158,22 @@ void HttpPost(struct httpMsg &msg)
 
 		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
 
-		auto now = std::chrono::system_clock::now();
-		auto duration = now.time_since_epoch();
-		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-		std::string imageName = std::to_string(milliseconds) + ".jpeg";
-
 		if (msg.type == MSG_TYPE_PICTURE) {
+			std::string imageName = std::to_string(msg.sampleTime) + ".jpeg";
 			// Add picture
 			AddBinaryPart(body, msg.imageBuffer, msg.imageLen, boundary, imageName);
 		}
-		else {
+		else if (msg.type == MSG_TYPE_TEXT){
 			// Add TEXT
 			std::string partStart = "--" + boundary + "\r\n";
 			body.insert(body.end(), partStart.begin(), partStart.end());
 			AddTextPart(body, msg.text, boundary, "content");
+		}
+		else if (msg.type == MSG_TYPE_SOUND) {
+			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
+			auto sound = readPCMFile(soundName);
+			// Add sound
+			AddBinaryPart(body, (unsigned char *)sound.data(), sound.size(), boundary, soundName);
 		}
 
 		std::string sampleTime = "123456789";
@@ -1430,8 +1452,13 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		// 初始化
 		int ret = audioDevice->Init(); // todo: 解决未找到音频设备时抛出异常的问题
 
+		auto now = std::chrono::system_clock::now();
+		auto duration = now.time_since_epoch();
+		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+	    std:string outFile = path + "\\temp\\" + std::to_string(milliseconds) + ".pcm";
+
 		// 录制 todo: 考虑录制时间
-		std::string recordFile = path + "\\temp" + "\\audio_data.raw";
+		std::string recordFile = path + "\\temp"+ "\\audio_data.pcm";
 		std::string logStr = "Record: ";
 		logStr.append(recordFile).append("\n");
 		AppendLog(StringToLPCWSTR(logStr));
@@ -1441,27 +1468,23 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		logStr.append(std::to_string(audioRet)).append("\n");
 		AppendLog(StringToLPCWSTR(logStr));
 
-		// 音频文件处理
-		std::string leftFile = path + "\\temp" + "\\left.pcm";
-		std::string rightFile = path + "\\temp" + "\\right.pcm";
-		logStr = "leftFile: ";
-		logStr.append(leftFile).append("\n");
-		AppendLog(StringToLPCWSTR(logStr));
-		logStr = "rightFile: ";
-		logStr.append(rightFile).append("\n");
-		AppendLog(StringToLPCWSTR(logStr));
-
-		audioDevice->SeparateStereoChannels(recordFile, leftFile, rightFile);
-		audioDevice->To16k(leftFile);
-		audioDevice->To16k(rightFile);
+		audioDevice->To16k(recordFile);
+		audioDevice->CutFile(recordFile, outFile, 6, 7);
 
 		// 删除文件
 		deleteFile(recordFile);
-		deleteFile(leftFile);
-		deleteFile(rightFile);
-		AppendLog(L"3 Files deleted.\n");
-
 		audioDevice->Terminate();
+
+		struct httpMsg msg;
+		msg.pipelineCode = pipelineCode;
+		msg.processesCode = unit->processesCode;
+		msg.processesTemplateCode = unit->processesTemplateCode;
+		msg.productSn = unit->productSn;
+		msg.productSnCode = unit->productSnCode;
+		msg.productSnModel = unit->productSnModel;
+		msg.type = MSG_TYPE_SOUND;
+		msg.sampleTime = milliseconds;
+		Singleton::instance().push(msg);
 
 		break;
 	}

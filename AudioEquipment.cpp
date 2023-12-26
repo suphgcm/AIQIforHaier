@@ -251,7 +251,7 @@ int AudioEquipment::PlayAndRecord(const std::string& fileName, int numSeconds) {
 	asioInputInfo.hostApiType = paASIO;
 	asioInputInfo.version = 1;
 	asioInputInfo.flags = paAsioUseChannelSelectors;
-	int inputChannelSelectors[2] = { 0, 1 }; // use the frist (left) ASIO device channel
+	int inputChannelSelectors[1] = { 0 };//, 1 }; // use the frist (left) ASIO device channel
 	asioInputInfo.channelSelectors = inputChannelSelectors;
 	inputParameters.hostApiSpecificStreamInfo = &asioInputInfo;
 
@@ -458,4 +458,54 @@ int AudioEquipment::To16k(const std::string& filename) const {
 	free(buffer);
 	sf_close(in_file);
 	sf_close(out_file);
+}
+
+int AudioEquipment::CutFile(const std::string& inFile, const std::string& outFile, int startSecond, int endSecond) 
+{
+	// Open the PCM file
+	FILE* fp_in;
+	fopen_s(&fp_in, inFile.c_str(), "rb");
+	if (fp_in == nullptr) {
+		std::cout << "Failed to open the PCM file " << inFile << std::endl;
+		return -1;
+	}
+
+	FILE* fp_out;
+	fopen_s(&fp_out, outFile.c_str(), "wb");
+	if (fp_out == nullptr) {
+		std::cout << "Failed to create the left channel PCM file." << std::endl;
+		fclose(fp_in);
+		return -1;
+	}
+
+	// Calculate byte_depth and bytes_per_sec
+	int byte_depth = BIT_DEPTH / 8; // bytes per sample
+	int bytes_per_sec = SAMPLING_RATE * CHANNEL_RECORD * byte_depth; // bytes per second
+
+	// Define a buffer to store one second of data
+	unsigned char* buffer = new unsigned char[bytes_per_sec];
+
+	// Loop until the end of file
+	int ret = 0;
+	int second = 0;
+	while (!feof(fp_in)) {
+		// Read one second of data (bytes_per_sec bytes)
+		size_t n = fread(buffer, 1, bytes_per_sec, fp_in);
+		if (n < bytes_per_sec) {
+			// If the data is not enough, break the loop
+			ret = -1;
+			break;
+		}
+		second++;
+		if ((second >= startSecond) && (second < endSecond)) {
+			fwrite(buffer, 1, bytes_per_sec, fp_out);
+		}
+	}
+
+	// Close the PCM files
+	fclose(fp_in);
+	fclose(fp_out);
+	delete[] buffer;
+
+	return ret;
 }

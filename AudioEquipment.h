@@ -29,7 +29,7 @@ public:
 
 	static const int SAMPLING_RATE = 48000;
 	static const int CHANNEL_COUNT = 1;
-	static const int CHANNEL_RECORD = 2;
+	static const int CHANNEL_RECORD = 1;
 	static const int BIT_DEPTH = 16;
 	static const int NFRAMES_PER_BLOCK = 4096;
 	static const int NUM_WRITES_PER_BUFFER = 4;
@@ -65,5 +65,6 @@ public:
 	int SeparateStereoChannels(const std::string& fileName, const std::string& leftFile, const std::string& rightFile) const;
 	//int CropAudioFile(const std::string& input, const double startSeconds, const double endSeconds, const std::string& output) const;
 	int To16k(const std::string& filename) const;
+	int CutFile(const std::string& inFile, const std::string& outFile, int startSecond, int endSecond);
 	// Ë³Ğò£ºInit -> record -> 48000_to_16000 -> seperate channel -> crop -> Terminate
 };

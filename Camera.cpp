@@ -413,6 +413,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			return false;
 		}
 
+		auto now = std::chrono::system_clock::now();
+		auto duration = now.time_since_epoch();
+		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
 		ProcessUnit* unit = (ProcessUnit*)args;
 		struct httpMsg msg;
 		msg.pipelineCode = pipelineCode;
@@ -424,6 +428,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		msg.type = MSG_TYPE_PICTURE;
 		msg.imageBuffer = to_jpeg.pImageBuffer;
 		msg.imageLen = to_jpeg.nImageLen;
+		msg.sampleTime = milliseconds;
 		Singleton::instance().push(msg);
 
 /*
