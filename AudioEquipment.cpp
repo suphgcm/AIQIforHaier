@@ -480,7 +480,7 @@ int AudioEquipment::CutFile(const std::string& inFile, const std::string& outFil
 
 	// Calculate byte_depth and bytes_per_sec
 	int byte_depth = BIT_DEPTH / 8; // bytes per sample
-	int bytes_per_sec = SAMPLING_RATE * CHANNEL_RECORD * byte_depth; // bytes per second
+	int bytes_per_sec = SAMPLING_RATE_16K * CHANNEL_RECORD * byte_depth; // bytes per second
 
 	// Define a buffer to store one second of data
 	unsigned char* buffer = new unsigned char[bytes_per_sec];

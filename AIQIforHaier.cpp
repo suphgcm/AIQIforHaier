@@ -187,8 +187,9 @@ void HttpPost(struct httpMsg &msg)
 			AddTextPart(body, msg.text, boundary, "content");
 		}
 		else if (msg.type == MSG_TYPE_SOUND) {
+			std::string soundPath = "D:\\AIQIforHaier\\temp\\" + std::to_string(msg.sampleTime) + ".pcm";
 			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
-			auto sound = readPCMFile(soundName);
+			auto sound = readPCMFile(soundPath);
 			// Add sound
 			AddBinaryPart(body, (unsigned char *)sound.data(), sound.size(), boundary, soundName);
 		}
@@ -1504,22 +1505,25 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		AppendLog(StringToLPCWSTR(logStr));
 
 		audioDevice->To16k(recordFile);
-		audioDevice->CutFile(recordFile, outFile, 6, 7);
+		std::string recordFile1 = path + "\\temp" + "\\audio_data_16.pcm";
+		audioDevice->CutFile(recordFile1, outFile, 6, 7);
 
 		// 删除文件
 		deleteFile(recordFile);
 		audioDevice->Terminate();
-
-		struct httpMsg msg;
-		msg.pipelineCode = pipelineCode;
-		msg.processesCode = unit->processesCode;
-		msg.processesTemplateCode = unit->processesTemplateCode;
-		msg.productSn = unit->productSn;
-		msg.productSnCode = unit->productSnCode;
-		msg.productSnModel = unit->productSnModel;
-		msg.type = MSG_TYPE_SOUND;
-		msg.sampleTime = milliseconds;
-		Singleton::instance().push(msg);
+		if (0 == audioRet)
+		{
+			struct httpMsg msg;
+			msg.pipelineCode = pipelineCode;
+			msg.processesCode = unit->processesCode;
+			msg.processesTemplateCode = unit->processesTemplateCode;
+			msg.productSn = unit->productSn;
+			msg.productSnCode = unit->productSnCode;
+			msg.productSnModel = unit->productSnModel;
+			msg.type = MSG_TYPE_SOUND;
+			msg.sampleTime = milliseconds;
+			Singleton::instance().push(msg);
+		}
 
 		break;
 	}

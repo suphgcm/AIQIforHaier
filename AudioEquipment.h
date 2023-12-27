@@ -28,6 +28,7 @@ public:
 	};
 
 	static const int SAMPLING_RATE = 48000;
+	static const int SAMPLING_RATE_16K = 16000;
 	static const int CHANNEL_COUNT = 1;
 	static const int CHANNEL_RECORD = 1;
 	static const int BIT_DEPTH = 16;
