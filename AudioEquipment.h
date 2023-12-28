@@ -2,6 +2,7 @@
 
 #include "equnit.h"
 #include <string>
+#include <mmsystem.h>
 #include "PortAudio/portaudio.h"
 #include "PortAudio/pa_asio.h"
 #include "PortAudio/pa_ringbuffer.h"
@@ -68,4 +69,6 @@ public:
 	int To16k(const std::string& filename) const;
 	int CutFile(const std::string& inFile, const std::string& outFile, int startSecond, int endSecond);
 	// Ë³Ðò£ºInit -> record -> 48000_to_16000 -> seperate channel -> crop -> Terminate
+	void PlayAudio(WAVEFORMATEX* pFormat);
+	int RecordAudio(WAVEFORMATEX* pFormat, int seconds, std::string recordFile);
 };

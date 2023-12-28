@@ -1,6 +1,4 @@
 #pragma warning(disable:4996)
-
-#include "AudioEquipment.h"
 #include <fstream>
 #include <iostream>
 #include <cmath>
@@ -8,6 +6,9 @@
 #include <process.h>
 #include "libsndfile/sndfile.h"
 #include <string>
+#include <vector>
+#include "AudioEquipment.h"
+#pragma comment(lib, "winmm.lib")
 
 PaDeviceIndex AudioEquipment::GetASIODeviceByName(const std::string& deviceName) const {
 	using namespace std;
@@ -509,3 +510,87 @@ int AudioEquipment::CutFile(const std::string& inFile, const std::string& outFil
 
 	return ret;
 }
+
+void AudioEquipment::PlayAudio(WAVEFORMATEX* pFormat) {
+	HWAVEOUT hWaveOut;
+	WAVEHDR WaveOutHdr;
+
+	waveOutOpen(&hWaveOut, WAVE_MAPPER, pFormat, 0L, 0L, WAVE_FORMAT_DIRECT);
+
+	WaveOutHdr.lpData = m_fileBuffer;
+	WaveOutHdr.dwBufferLength = m_fileSize;
+	WaveOutHdr.dwBytesRecorded = 0;
+	WaveOutHdr.dwUser = 0L;
+	WaveOutHdr.dwFlags = 0L;
+	WaveOutHdr.dwLoops = 1;
+
+	waveOutPrepareHeader(hWaveOut, &WaveOutHdr, sizeof(WAVEHDR));
+
+	waveOutWrite(hWaveOut, &WaveOutHdr, sizeof(WAVEHDR));
+
+	while (waveOutUnprepareHeader(hWaveOut, &WaveOutHdr, sizeof(WAVEHDR)) == WAVERR_STILLPLAYING) {
+		Sleep(100);
+	}
+
+	waveOutClose(hWaveOut);
+}
+
+int AudioEquipment::RecordAudio(WAVEFORMATEX* pFormat, int seconds, std::string recordFile) {
+	WAVEHDR waveHeader;
+	HWAVEIN hWaveIn;
+	
+	char* buffer = new char[pFormat->nAvgBytesPerSec * seconds];
+
+	MMRESULT result = waveInOpen(&hWaveIn, WAVE_MAPPER, pFormat, 0L, 0L, WAVE_FORMAT_DIRECT);
+	if (result)
+	{
+		printf("Failed to open waveform input device.\n");
+		return -1;
+	}
+
+	waveHeader.lpData = buffer;
+	waveHeader.dwBufferLength = sizeof(buffer);
+	waveHeader.dwBytesRecorded = 0;
+	waveHeader.dwUser = 0L;
+	waveHeader.dwFlags = 0L;
+	waveHeader.dwLoops = 0L;
+
+	result = waveInPrepareHeader(hWaveIn, &waveHeader, sizeof(WAVEHDR));
+	if (result)
+	{
+		printf("Failed to prepare waveform header.\n");
+		return -1;
+	}
+
+	result = waveInAddBuffer(hWaveIn, &waveHeader, sizeof(WAVEHDR));
+	if (result)
+	{
+		printf("Failed to add buffer.\n");
+		return -1;
+	}
+
+	result = waveInStart(hWaveIn);
+	if (result)
+	{
+		printf("Failed to start recording.\n");
+		return -1;
+	}
+
+	// Record for RECORD_TIME milliseconds
+	Sleep(seconds);
+
+	// Open a .pcm file for writing
+	std::ofstream outFile(recordFile.c_str(), std::ios::binary);
+
+	// Write the buffer to the file
+	outFile.write(buffer, waveHeader.dwBytesRecorded);
+
+	outFile.close();
+
+	waveInStop(hWaveIn);
+	waveInUnprepareHeader(hWaveIn, &waveHeader, sizeof(WAVEHDR));
+	waveInClose(hWaveIn);
+
+	return 0;
+}
+

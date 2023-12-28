@@ -9,7 +9,8 @@ static std::unordered_map<std::string, int> deviceTypeCodemap = {
 	{"Camera",2},
 	{"ScanningGun",3},
 	{"Speaker",4},
-	{"RemoteControl",5}
+	{"RemoteControl",5},
+    {"Recorder",6}
 };
 
 /*static std::unordered_map<std::string, int> GPIOParammap = {
