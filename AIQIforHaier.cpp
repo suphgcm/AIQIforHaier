@@ -1098,6 +1098,21 @@ void GetConfig(/*HWND hWnd*/) {
 					}
 					case 5: // todo: 加串口
 						break;
+					case 6: {//Recorder设备
+						curUnit->deviceTypeCode = deviceCfg["deviceTypeCode"];
+						curUnit->deviceCode = deviceCfg["deviceCode"];
+						curUnit->eq = deviceMap[curUnit->deviceCode];
+						curUnit->parameter = deviceCfg["deviceParamConfigList"];
+						auto deviceParamConfigList = deviceCfg["deviceParamConfigList"];
+						for (auto deviceParam : deviceParamConfigList) {
+							if ((std::string)deviceParam["paramCode"] == "devicelatency") {
+								curUnit->laterncy = std::stol((std::string)deviceParam["paramValue"]);
+							}
+						}
+						ProcessUnit* processListHead = testListMap->find(gpioPin)->second;
+						insertProcessUnit(processListHead, curUnit);
+						break;
+					}
 					default:
 						break;
 					}
@@ -1408,6 +1423,11 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
 	return 0;
 }
 
+
+#define SAMPLE_RATE 48000
+#define NUM_CHANNELS 1
+#define BITS_PER_SAMPLE 16
+
 DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//DWORD tid = GetCurrentThreadId();
 	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
@@ -1484,8 +1504,8 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	}
 	case 4: { // Speaker
 		AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(unit->eq);
-		log_info("Audio device " + audioDevice->e_deviceCode + " be called!");
-		// 初始化
+		log_info("Speaker device " + audioDevice->e_deviceCode + " be called!");
+/*		// 初始化
 		int ret = audioDevice->Init(); // todo: 解决未找到音频设备时抛出异常的问题
 
 		auto now = std::chrono::system_clock::now();
@@ -1524,11 +1544,62 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 			msg.sampleTime = milliseconds;
 			Singleton::instance().push(msg);
 		}
+*/
+		WAVEFORMATEX format;
+		format.wFormatTag = WAVE_FORMAT_PCM;
+		format.nChannels = 1;
+		format.nSamplesPerSec = 16000;
+		format.nAvgBytesPerSec = 16000 * 2;
+		format.nBlockAlign = 2;
+		format.wBitsPerSample = 16;
+		format.cbSize = 0;
 
+		audioDevice->PlayAudio(&format);
 		break;
 	}
 	case 5: { // RemoteControl
 		// todo: 加串口
+		break;
+	}
+	case 6: { //Recorder
+		AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(unit->eq);
+
+		WAVEFORMATEX waveFormat;
+		waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+		waveFormat.nSamplesPerSec = SAMPLE_RATE;
+		waveFormat.nChannels = NUM_CHANNELS;
+		waveFormat.wBitsPerSample = BITS_PER_SAMPLE;
+		waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
+		waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
+		waveFormat.cbSize = 0;
+
+		auto now = std::chrono::system_clock::now();
+		auto duration = now.time_since_epoch();
+		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+		std::string recordFile = path + "\\temp" + "\\audio_data.pcm";
+		int audioRet = audioDevice->RecordAudio(&waveFormat, 3, recordFile);
+		audioDevice->To16k(recordFile);
+		std::string recordFile1 = path + "\\temp" + "\\audio_data_16.pcm";
+		std::string resultFile = path + "\\temp\\" + std::to_string(milliseconds) + ".pcm";
+		// 删除文件
+		deleteFile(recordFile);
+
+		std::rename(recordFile1.c_str(), resultFile.c_str());
+
+		if (0 == audioRet)
+		{
+			struct httpMsg msg;
+			msg.pipelineCode = pipelineCode;
+			msg.processesCode = unit->processesCode;
+			msg.processesTemplateCode = unit->processesTemplateCode;
+			msg.productSn = unit->productSn;
+			msg.productSnCode = unit->productSnCode;
+			msg.productSnModel = unit->productSnModel;
+			msg.type = MSG_TYPE_SOUND;
+			msg.sampleTime = milliseconds;
+			Singleton::instance().push(msg);
+		}
 		break;
 	}
 	default:
