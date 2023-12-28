@@ -63,7 +63,7 @@
         "deviceTypeCode": "ScanningGun",
         "deviceName": "扫码相机2",
         "deviceCode": "DC100002",
-        "ipAddr": "192.168.0.102",
+        "ipAddr": "169.168.0.102",
         "deviceSn": "00K11983019",
         "deviceParamConfigList": [
           {
@@ -109,7 +109,7 @@
             "deviceTypeCode":"Camera",
             "deviceName":"相机3",
             "deviceCode":"DC100003",
-            "ipAddr":"172.16.0.103",
+            "ipAddr":"171.16.1.103",
             "deviceSn":"L38823513"
         },
         {
