@@ -298,11 +298,11 @@ DWORD HttpServer(LPVOID lpParam)
 
 	svr.Post("/alarm", [](const httplib::Request& req, httplib::Response& res) {
 		log_info("Current device test failed, alarm!");
- /*     GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find("DC500001")->second);
+        GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find("DC500001")->second);
         deviceGPIO->SetPinLevel(5, 1);
         std::this_thread::sleep_for(std::chrono::seconds(3));
         deviceGPIO->SetPinLevel(5, 0);
-*/
+
         res.set_content(req.body, "application/json");
     });
 
