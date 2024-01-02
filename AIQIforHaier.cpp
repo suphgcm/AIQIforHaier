@@ -1423,11 +1423,6 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
 	return 0;
 }
 
-
-#define SAMPLE_RATE 48000
-#define NUM_CHANNELS 1
-#define BITS_PER_SAMPLE 16
-
 DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//DWORD tid = GetCurrentThreadId();
 	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
@@ -1548,10 +1543,10 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		WAVEFORMATEX format;
 		format.wFormatTag = WAVE_FORMAT_PCM;
 		format.nChannels = 1;
-		format.nSamplesPerSec = 16000;
-		format.nAvgBytesPerSec = 16000 * 2;
-		format.nBlockAlign = 2;
+		format.nSamplesPerSec = 48000;
 		format.wBitsPerSample = 16;
+		format.nBlockAlign = (format.nChannels * format.wBitsPerSample) / 8;
+		format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
 		format.cbSize = 0;
 
 		audioDevice->PlayAudio(&format);
@@ -1561,14 +1556,14 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		// todo: 加串口
 		break;
 	}
-	case 6: { //Recorder
+	case 6: { //Microphone
 		AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(unit->eq);
 
 		WAVEFORMATEX waveFormat;
 		waveFormat.wFormatTag = WAVE_FORMAT_PCM;
-		waveFormat.nSamplesPerSec = SAMPLE_RATE;
-		waveFormat.nChannels = NUM_CHANNELS;
-		waveFormat.wBitsPerSample = BITS_PER_SAMPLE;
+		waveFormat.nSamplesPerSec = 48000;
+		waveFormat.nChannels = 1;
+		waveFormat.wBitsPerSample = 16;
 		waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
 		waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
 		waveFormat.cbSize = 0;
