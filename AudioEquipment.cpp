@@ -384,16 +384,16 @@ int AudioEquipment::SeparateStereoChannels(
 	return ret;
 }
 
-int AudioEquipment::To16k(const std::string& filename) const {
-	std::string curFile = filename;
-
+int AudioEquipment::To16k(const std::string& inFileName, const std::string& outFileName) const {
+	std::string curFile = inFileName;
+/*
 	std::string convFile = filename;
 	size_t pos = filename.rfind(".pcm");
 
 	if (pos != std::string::npos) {
 		convFile.insert(pos, "_16");
 	}
-
+*/
 	// 打开输入文件
 	SF_INFO in_info; // 输入文件信息结构体
 	in_info.samplerate = 48000; // 设置输入采样率为48000hz
@@ -420,7 +420,7 @@ int AudioEquipment::To16k(const std::string& filename) const {
 	out_info.samplerate = 16000; // 设置输出采样率为16000hz
 	out_info.channels = in_info.channels; // 设置输出声道数与输入相同
 	out_info.format = in_info.format; // 设置输出格式与输入相同
-	SNDFILE* out_file = sf_open(convFile.c_str(), SFM_WRITE, &out_info);
+	SNDFILE* out_file = sf_open(outFileName.c_str(), SFM_WRITE, &out_info);
 	if (out_file == NULL) { // 检查创建是否成功
 		printf("无法创建输出文件: %s\n", sf_strerror(out_file));
 		sf_close(in_file); // 关闭输入文件

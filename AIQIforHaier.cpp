@@ -1574,13 +1574,11 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 
 		std::string recordFile = path + "\\temp" + "\\audio_data.pcm";
 		int audioRet = audioDevice->RecordAudio(&waveFormat, 3, recordFile);
-		audioDevice->To16k(recordFile);
-		std::string recordFile1 = path + "\\temp" + "\\audio_data_16.pcm";
 		std::string resultFile = path + "\\temp\\" + std::to_string(milliseconds) + ".pcm";
+		audioDevice->To16k(recordFile, resultFile);
+
 		// 删除文件
 		deleteFile(recordFile);
-
-		std::rename(recordFile1.c_str(), resultFile.c_str());
 
 		if (0 == audioRet)
 		{

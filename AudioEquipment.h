@@ -66,7 +66,7 @@ public:
 	int PlayAndRecord(const std::string& fileName, int numSeconds = 10); // todo: 加上要播放的参数
 	int SeparateStereoChannels(const std::string& fileName, const std::string& leftFile, const std::string& rightFile) const;
 	//int CropAudioFile(const std::string& input, const double startSeconds, const double endSeconds, const std::string& output) const;
-	int To16k(const std::string& filename) const;
+	int To16k(const std::string& inFileName, const std::string& outFileName) const;
 	int CutFile(const std::string& inFile, const std::string& outFile, int startSecond, int endSecond);
 	// 顺序：Init -> record -> 48000_to_16000 -> seperate channel -> crop -> Terminate
 	void PlayAudio(WAVEFORMATEX* pFormat);
