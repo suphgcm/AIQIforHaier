@@ -577,7 +577,7 @@ int AudioEquipment::RecordAudio(WAVEFORMATEX* pFormat, int seconds, std::string 
 	}
 
 	// Record for RECORD_TIME milliseconds
-	Sleep(seconds);
+	Sleep(seconds*1000);
 
 	// Open a .pcm file for writing
 	std::ofstream outFile(recordFile.c_str(), std::ios::binary);
