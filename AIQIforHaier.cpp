@@ -733,6 +733,12 @@ void StartSelfTesting(/*HWND hWnd*/) {
 							AppendLog(_T("初始化遥控器信息完成！\n"));
 							break;
 						}
+						case 6: { //音频设备
+							AudioEquipment* audioDevice = new AudioEquipment(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
+							deviceMap.insert(std::make_pair(sdeviceCode, audioDevice));
+							AppendLog(_T("初始化音频设备信息完成！\n"));
+							break;
+						}
 						default:
 							AppendLog(_T("警告：初始化设备信息存在未知设备！\n"));
 							break;
@@ -821,6 +827,8 @@ void StartSelfTesting(/*HWND hWnd*/) {
 				//}
 				break;
 			}
+			case 6:
+				break;
 			default:
 				break;
 			}
@@ -1558,6 +1566,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	}
 	case 6: { //Microphone
 		AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(unit->eq);
+		log_info("Microphone device " + audioDevice->e_deviceCode + " be called!");
 
 		WAVEFORMATEX waveFormat;
 		waveFormat.wFormatTag = WAVE_FORMAT_PCM;
