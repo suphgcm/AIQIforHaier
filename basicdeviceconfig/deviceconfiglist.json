@@ -368,6 +368,15 @@
             "deviceCode":"DC100016"
         },
         {
+            "deviceTypeName": "麦克风",
+            "deviceTypeId": "1699328798675996674",
+            "deviceTypeCode": "Microphone",
+            "deviceName": "Microphone XXX",
+            "ipAddr": "127.0.0.1",
+            "deviceSn": "SN400001",
+            "deviceCode": "DC100020"
+        },
+        {
             "deviceTypeId":"1699325315348467713",
             "deviceTypeName":"相机",
             "deviceTypeCode":"Camera",
