@@ -549,7 +549,7 @@ int AudioEquipment::RecordAudio(WAVEFORMATEX* pFormat, int seconds, std::string 
 	}
 
 	waveHeader.lpData = buffer;
-	waveHeader.dwBufferLength = sizeof(buffer);
+	waveHeader.dwBufferLength = pFormat->nAvgBytesPerSec * seconds;
 	waveHeader.dwBytesRecorded = 0;
 	waveHeader.dwUser = 0L;
 	waveHeader.dwFlags = 0L;
@@ -591,6 +591,7 @@ int AudioEquipment::RecordAudio(WAVEFORMATEX* pFormat, int seconds, std::string 
 	waveInUnprepareHeader(hWaveIn, &waveHeader, sizeof(WAVEHDR));
 	waveInClose(hWaveIn);
 
+	delete[] buffer;
 	return 0;
 }
 

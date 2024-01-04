@@ -130,10 +130,14 @@ void HttpPost(struct httpMsg &msg)
 		WINHTTP_NO_PROXY_BYPASS, 0);
 
 	// Specify an HTTP server.
-	if (hSession)
+	if (hSession) {
 		hConnect = WinHttpConnect(hSession, L"192.168.0.189",
 			HTTP_POST_PORT, 0);
-
+	}
+	else {
+		log_error("Win http open failed! product sn: " + msg.productSn +  " ,processTemplateCode: " + msg.processesTemplateCode);
+		return;
+	}
 	//Define body
 	std::vector<char> body;
 	std::wstring headers;
@@ -213,29 +217,44 @@ void HttpPost(struct httpMsg &msg)
 	}
 
 	// Create an HTTP request handle.
-	if (hConnect)
+	if (hConnect) {
 		hRequest = WinHttpOpenRequest(hConnect, methods.c_str(),
 			objectName.c_str(),
 			NULL, WINHTTP_NO_REFERER,
 			WINHTTP_DEFAULT_ACCEPT_TYPES,
 			0);
+	}
+	else {
+		log_error("Win http connect failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
+		WinHttpCloseHandle(hSession);
+		return;
+	}
 
 	// Send a request.
-	if (hRequest)
+	if (hRequest) {
 		bResults = WinHttpSendRequest(hRequest,
 			headers.c_str(),
 			headers.length(), static_cast<LPVOID>(body.data()),
 			body.size(),
 			body.size(), 0);
-
+	}
+	else {
+		log_error("Win http open request failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return;
+	}
 	// End the request.
-	if (bResults)
+	if (bResults) {
 		bResults = WinHttpReceiveResponse(hRequest, NULL);
-
+	}
+	else {
+		log_error("Win http send request failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
+	}
 	// Close any open handles.
-	if (hRequest) WinHttpCloseHandle(hRequest);
-	if (hConnect) WinHttpCloseHandle(hConnect);
-	if (hSession) WinHttpCloseHandle(hSession);
+    WinHttpCloseHandle(hRequest);
+	WinHttpCloseHandle(hConnect);
+	WinHttpCloseHandle(hSession);
 
 	return;
 }
@@ -872,7 +891,7 @@ void GetConfig(/*HWND hWnd*/) {
 	}
 	f_GETCFG = !f_GETCFG;
 	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
-
+/*
 	// 调用 GetPipelineConfig.jar
 	std::string jarPath = projDir.c_str();
 	jarPath.append("\\GetPipelineConfig.jar");
@@ -897,7 +916,7 @@ void GetConfig(/*HWND hWnd*/) {
 	}
 
 	remove(flagpath.c_str());
-
+*/
 	// 读取 pipelineConfig.json
 	//std::string configfile = ".\\productconfig\\pipelineConfig.json";
 	std::string configfile = projDir.c_str();
@@ -1583,7 +1602,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
 		std::string recordFile = path + "\\temp" + "\\audio_data.pcm";
-		int audioRet = audioDevice->RecordAudio(&waveFormat, 3, recordFile);
+		int audioRet = audioDevice->RecordAudio(&waveFormat, 2, recordFile);
 		std::string resultFile = path + "\\temp\\" + std::to_string(milliseconds) + ".pcm";
 		audioDevice->To16k(recordFile, resultFile);
 
