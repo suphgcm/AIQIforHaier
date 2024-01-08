@@ -196,9 +196,10 @@ void HttpPost(struct httpMsg &msg)
 			AddTextPart(body, msg.text, boundary, "content");
 		}
 		else if (msg.type == MSG_TYPE_SOUND) {
-			std::string soundPath = "D:\\AIQIforHaier\\temp\\" + std::to_string(msg.sampleTime) + ".pcm";
+			std::string soundPath = projDir.c_str();
+			soundPath.append("\\temp\\");
 			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
-			auto sound = readPCMFile(soundPath);
+			auto sound = readPCMFile(soundPath + soundName);
 			// Add sound
 			AddBinaryPart(body, (unsigned char *)sound.data(), sound.size(), boundary, soundName);
 		}
@@ -603,7 +604,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			AppendLog(_T("开始设备基础信息读取和初始化\n"));
 			DeviceConfigued = true;
 
-			std::string deviceConfigPath = "D:\\AIQIforHaier";
+			std::string deviceConfigPath = projDir.c_str();
 			deviceConfigPath.append("\\basicdeviceconfig\\deviceconfiglist.json");
 			std::ifstream jsonFile(deviceConfigPath); // todo: 文件路径可配置
 			if (!jsonFile.is_open()) {
@@ -851,7 +852,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 4: { // 音频
 				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
 				
-				std::string soundFile = "D:\\AIQIforHaier";
+				std::string soundFile = projDir.c_str();
 				soundFile.append("\\sounds\\upset.pcm"); // todo: 根据配置设置播放的音频文件
 				audioDevice->ReadFile(soundFile);
 
@@ -918,15 +919,15 @@ void GetConfig(/*HWND hWnd*/) {
 	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
 /*
 	// 调用 GetPipelineConfig.jar
-	std::string jarPath = "D:\\AIQIforHaier";
+	std::string jarPath = projDir.c_str();
 	jarPath.append("\\GetPipelineConfig.jar");
-	std::string cfgDir = "D:\\AIQIforHaier";
+	std::string cfgDir = projDir.c_str();
 	cfgDir.append("\\productconfig\\");
 	std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
     std::system(command.c_str());
 
 	// 检查 flag
-	std::string flagpath = "D:\\AIQIforHaier";
+	std::string flagpath = projDir.c_str();
 	flagpath.append("\\productconfig\\flag");
 	auto now = std::chrono::system_clock::now();
 	auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
@@ -944,7 +945,7 @@ void GetConfig(/*HWND hWnd*/) {
 */
 	// 读取 pipelineConfig.json
 	//std::string configfile = ".\\productconfig\\pipelineConfig.json";
-	std::string configfile = "D:\\AIQIforHaier";
+	std::string configfile = projDir.c_str();
 	configfile.append("\\productconfig\\pipelineConfig.json");
 	std::ifstream jsonFile(configfile);
 	if (!jsonFile.is_open()) {
@@ -1489,7 +1490,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	ProcessUnit* unit = param->procUnit;
 	bool sameProductSn = param->sameProductSnCode;
 	delete(param);
-	std::string path = "D:\\AIQIforHaier";
+	std::string path = projDir.c_str();
 	//add replace productionSnModel / to _
 	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
 
