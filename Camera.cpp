@@ -13,6 +13,10 @@
 extern void AppendLog(LPCWSTR text);
 extern LPCWSTR StringToLPCWSTR(const std::string& s);
 extern std::string pipelineCode;
+extern struct counter {
+	std::mutex mutex;
+	long long count;
+} Counter;
 
 MV_CC_DEVICE_INFO* Camera::GetCameraByIpAddress() {
 	if (m_isGot) {
@@ -419,6 +423,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 
 		ProcessUnit* unit = (ProcessUnit*)args;
 		struct httpMsg msg;
+		Counter.mutex.lock();
+		Counter.count++;
+		msg.msgId = Counter.count;
+		Counter.mutex.unlock();
 		msg.pipelineCode = pipelineCode;
 		msg.processesCode = unit->processesCode;
 		msg.processesTemplateCode = unit->processesTemplateCode;
@@ -430,7 +438,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		msg.imageLen = to_jpeg.nImageLen;
 		msg.sampleTime = milliseconds;
 		Singleton::instance().push(msg);
-
+		log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 /*
 		//将图片从内存保存到本地中
 		MV_SAVE_IMAGE_TO_FILE_PARAM_EX file;

@@ -11,6 +11,7 @@ enum MSG_TYPE_E {
 };
 
 struct httpMsg {
+	long long msgId;
 	std::string pipelineCode;
 	std::string processesCode;
 	std::string processesTemplateCode;

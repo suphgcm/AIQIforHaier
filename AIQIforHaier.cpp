@@ -62,6 +62,11 @@ DWORD __stdcall SerialCommunicationThread(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
 
+struct counter {
+	std::mutex mutex;
+	long long count;
+} Counter;
+
 std::vector<char> readPCMFile(const std::string& filename) {
     // 打开文件
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
@@ -122,13 +127,13 @@ void HttpPost(struct httpMsg &msg)
 	DWORD dwSize = 0;
 	DWORD dwDownloaded = 0;
 	LPSTR pszOutBuffer;
-
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start open http!");
 	// Use WinHttpOpen to obtain a session handle.
 	hSession = WinHttpOpen(L"WinHTTP Example/1.0",
 		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
 		WINHTTP_NO_PROXY_NAME,
 		WINHTTP_NO_PROXY_BYPASS, 0);
-
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start connect http!");
 	// Specify an HTTP server.
 	if (hSession) {
 		hConnect = WinHttpConnect(hSession, L"192.168.0.189",
@@ -214,7 +219,7 @@ void HttpPost(struct httpMsg &msg)
 		body.insert(body.end(), End.begin(), End.end());
 	
 	}
-
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start open request!");
 	// Create an HTTP request handle.
 	if (hConnect) {
 		hRequest = WinHttpOpenRequest(hConnect, methods.c_str(),
@@ -228,7 +233,7 @@ void HttpPost(struct httpMsg &msg)
 		WinHttpCloseHandle(hSession);
 		return;
 	}
-
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start send request!");
 	// Send a request.
 	if (hRequest) {
 		bResults = WinHttpSendRequest(hRequest,
@@ -243,6 +248,7 @@ void HttpPost(struct httpMsg &msg)
 		WinHttpCloseHandle(hSession);
 		return;
 	}
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start receive request!");
 	// End the request.
 	if (bResults) {
 		bResults = WinHttpReceiveResponse(hRequest, NULL);
@@ -250,11 +256,12 @@ void HttpPost(struct httpMsg &msg)
 	else {
 		log_error("Win http send request failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
 	}
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "end receive request!");
 	// Close any open handles.
     WinHttpCloseHandle(hRequest);
 	WinHttpCloseHandle(hConnect);
 	WinHttpCloseHandle(hSession);
-
+	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "end!");
 	return;
 }
 
@@ -265,7 +272,23 @@ DWORD HttpPostThread(LPVOID lpParam)
 	while (true)
 	{
 		Singleton::instance().wait(msg);
+		if (msg.type == MSG_TYPE_STOP)
+		{
+			log_info("Process http stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
+		}
+		else {
+			log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
+		}
+
 		HttpPost(msg);
+
+		if (msg.type == MSG_TYPE_STOP)
+		{
+			log_info("End process http stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
+		}
+		else {
+			log_info("End process http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
+		}
 
 		if (msg.type == MSG_TYPE_PICTURE)
 		{
@@ -356,6 +379,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
+	//HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
+	//HANDLE hHttpPost2 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
+    //HANDLE hHttpPost3 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
 	StartSelfTesting();
@@ -1368,11 +1394,16 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	if (gpioPin == 1)
 	{
 		struct httpMsg msg;
+		Counter.mutex.lock();
+		Counter.count++;
+		msg.msgId = Counter.count;
+		Counter.mutex.unlock();
 		msg.pipelineCode = pipelineCode;
 		msg.productSn = productSn;
 		msg.type = MSG_TYPE_STOP;
 
 		Singleton::instance().push(msg);
+		log_info("push stop http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
 	}
 	return 0;
 }
@@ -1507,6 +1538,10 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 //		file.close();
 
 		struct httpMsg msg;
+		Counter.mutex.lock();
+		Counter.count++;
+		msg.msgId = Counter.count;
+		Counter.mutex.unlock();
 		msg.pipelineCode = pipelineCode;
 		msg.processesCode = unit->processesCode;
 		msg.processesTemplateCode = unit->processesTemplateCode;
@@ -1521,7 +1556,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 			msg.text = "";
 		}
 		Singleton::instance().push(msg);
-
+		log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 		break;
 	}
 	case 4: { // Speaker
@@ -1611,6 +1646,10 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		if (0 == audioRet)
 		{
 			struct httpMsg msg;
+			Counter.mutex.lock();
+			Counter.count++;
+			msg.msgId = Counter.count;
+			Counter.mutex.unlock();
 			msg.pipelineCode = pipelineCode;
 			msg.processesCode = unit->processesCode;
 			msg.processesTemplateCode = unit->processesTemplateCode;
@@ -1620,6 +1659,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 			msg.type = MSG_TYPE_SOUND;
 			msg.sampleTime = milliseconds;
 			Singleton::instance().push(msg);
+			log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 		}
 		break;
 	}
