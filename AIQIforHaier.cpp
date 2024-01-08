@@ -107,12 +107,10 @@ void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int 
 	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + fileName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
-	std::vector<char> binaryData;
 	for (int i = 0; i < lengh; i++)
 	{
-		binaryData.push_back(buffer[i]);
+		body.push_back(buffer[i]);
 	}
-	body.insert(body.end(), binaryData.begin(), binaryData.end());
 
 	std::string partEnd = "\r\n--" + boundary + "\r\n";
 	body.insert(body.end(), partEnd.begin(), partEnd.end());
