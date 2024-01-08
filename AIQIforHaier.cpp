@@ -89,7 +89,8 @@ std::vector<char> readPCMFile(const std::string& filename) {
 
 void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary, std::string name)
 {
-	std::string textPartStart = "Content-Disposition: form-data; name=\""+name+"\"\r\nContent-Type:text-plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
+	std::string textPartStart = "Content-Disposition: form-data; name=\""+ name + \
+		"\"\r\nContent-Type:text-plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
 	body.insert(body.end(), textPartStart.begin(), textPartStart.end());
 
 	std::string textData = text;
@@ -104,7 +105,8 @@ void AddTextPart(std::vector<char> &body, std::string &text, std::string &bounda
 void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int lengh, std::string& boundary, std::string fileName)
 {
 	// Add picture
-	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + fileName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
+	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + \
+		fileName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
 	for (int i = 0; i < lengh; i++)
@@ -350,20 +352,24 @@ DWORD HttpPostThread(LPVOID lpParam)
 		Singleton::instance().wait(msg);
 		if (msg.type == MSG_TYPE_STOP)
 		{
-			log_info("Process http stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
+			log_info("Process http stop msg, msgId: " + std::to_string(msg.msgId) + \
+				", processSn: " + msg.productSn);
 		}
 		else {
-			log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
+			log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + \
+				", processesTemplateCode : " + msg.processesTemplateCode);
 		}
 
 		HttpPost(msg);
 
 		if (msg.type == MSG_TYPE_STOP)
 		{
-			log_info("End process http stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
+			log_info("End process http stop msg, msgId: " + std::to_string(msg.msgId) + \
+				", processSn: " + msg.productSn);
 		}
 		else {
-			log_info("End process http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
+			log_info("End process http msg, msgId: " + std::to_string(msg.msgId) + \
+				", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 		}
 
 		if (msg.type == MSG_TYPE_PICTURE)
@@ -1469,6 +1475,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	/*最后一个gpio引脚触发事件处理结束后，发送检测结束标志*/
 	if (gpioPin == 1)
 	{
+		Sleep(500);
 		struct httpMsg msg;
 		Counter.mutex.lock();
 		Counter.count++;
@@ -1479,7 +1486,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		msg.type = MSG_TYPE_STOP;
 
 		Singleton::instance().push(msg);
-		log_info("push stop http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
+		log_info("push stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
 	}
 	return 0;
 }
