@@ -272,11 +272,12 @@ void HttpPost(struct httpMsg& msg) {
 	std::string path;
 	httplib::Headers headers;
 	std::string body;
+	std::string contentType;
 
 	if (msg.type == MSG_TYPE_STOP) {
 		path = "/inspection/stopFlag";
-		headers = { {"Content-Type", "application/json"} };
-
+		//headers = { {"Content-Type", "application/json"} };
+		contentType = "application/json";
 		nlohmann::json jsonObject;
 		jsonObject["pipelineCode"] = msg.pipelineCode;
 		jsonObject["productSn"] = msg.productSn;
@@ -284,7 +285,8 @@ void HttpPost(struct httpMsg& msg) {
 	}
 	else {
 		path = "/inspection/upload";
-		headers = { {"Content-Type", "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW"} };
+		//headers = { {"Content-Type", "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW"} };
+		contentType = "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
 		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
 		std::vector<char> body1;
 
@@ -327,9 +329,9 @@ void HttpPost(struct httpMsg& msg) {
 		body = temp;
 	}
 
-	log_info("Start post http msg, msgId: " + std::to_string(msg.msgId) + ", product sn : " + msg.productSn + ", processTemplateCode : " + msg.processesTemplateCode);
-	auto res = cli.Post(path.c_str(), headers, body, "application/x-www-form-urlencoded");
-	log_info("End post http msg, msgId: " + std::to_string(msg.msgId) + ", product sn : " + msg.productSn + ", processTemplateCode : " + msg.processesTemplateCode);
+	log_info("Start post http msg, msgId: " + std::to_string(msg.msgId));
+	auto res = cli.Post(path.c_str(), headers, body, contentType);
+	log_info("End post http msg, msgId: " + std::to_string(msg.msgId));
 
 	if (res && res->status == 200) {
 		log_info("Http msg post successed! msgId: " + std::to_string(msg.msgId));
