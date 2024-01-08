@@ -120,7 +120,7 @@ void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int 
 	return;
 }
 
-void HttpPost(struct httpMsg &msg)
+void HttpPost1(struct httpMsg &msg)
 {
 	HINTERNET hSession=NULL, hConnect=NULL, hRequest=NULL;
 	BOOL  bResults = FALSE;
@@ -263,6 +263,81 @@ void HttpPost(struct httpMsg &msg)
 	WinHttpCloseHandle(hConnect);
 	WinHttpCloseHandle(hSession);
 	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "end!");
+	return;
+}
+
+void HttpPost(struct httpMsg& msg) {
+	httplib::Client cli("192.168.0.189", HTTP_POST_PORT);
+
+	std::string path;
+	httplib::Headers headers;
+	std::string body;
+
+	if (msg.type == MSG_TYPE_STOP) {
+		path = "/inspection/stopFlag";
+		headers = { {"Content-Type", "application/json"} };
+
+		nlohmann::json jsonObject;
+		jsonObject["pipelineCode"] = msg.pipelineCode;
+		jsonObject["productSn"] = msg.productSn;
+		body = jsonObject.dump();
+	}
+	else {
+		path = "/inspection/upload";
+		headers = { {"Content-Type", "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW"} };
+		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+		std::vector<char> body1;
+
+		if (msg.type == MSG_TYPE_PICTURE) {
+			std::string imageName = std::to_string(msg.sampleTime) + ".jpeg";
+			// Add picture
+			AddBinaryPart(body1, msg.imageBuffer, msg.imageLen, boundary, imageName);
+		}
+		else if (msg.type == MSG_TYPE_TEXT) {
+			// Add TEXT
+			std::string partStart = "--" + boundary + "\r\n";
+			body1.insert(body1.end(), partStart.begin(), partStart.end());
+			AddTextPart(body1, msg.text, boundary, "content");
+		}
+		else if (msg.type == MSG_TYPE_SOUND) {
+			std::string soundPath = projDir.c_str();
+			soundPath.append("\\temp\\");
+			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
+			auto sound = readPCMFile(soundPath + soundName);
+			// Add sound
+			AddBinaryPart(body1, (unsigned char*)sound.data(), sound.size(), boundary, soundName);
+		}
+
+		std::string sampleTime = "123456789";
+		// Add text part
+		AddTextPart(body1, msg.pipelineCode, boundary, "pipelineCode");
+		AddTextPart(body1, msg.processesCode, boundary, "processesCode");
+		AddTextPart(body1, msg.processesTemplateCode, boundary, "processesTemplateCode");
+		AddTextPart(body1, msg.productSn, boundary, "productSn");
+		AddTextPart(body1, msg.productSnCode, boundary, "productSnCode");
+		AddTextPart(body1, msg.productSnModel, boundary, "productSnModel");
+		AddTextPart(body1, sampleTime, boundary, "sampleTime");
+
+		body1.pop_back();
+		body1.pop_back();
+		std::string End = "--\r\n";
+		body1.insert(body1.end(), End.begin(), End.end());
+
+		std::string temp(body1.begin(), body1.end());
+		body = temp;
+	}
+
+	log_info("Start post http msg, msgId: " + std::to_string(msg.msgId) + ", product sn : " + msg.productSn + ", processTemplateCode : " + msg.processesTemplateCode);
+	auto res = cli.Post(path.c_str(), headers, body, "application/x-www-form-urlencoded");
+	log_info("End post http msg, msgId: " + std::to_string(msg.msgId) + ", product sn : " + msg.productSn + ", processTemplateCode : " + msg.processesTemplateCode);
+
+	if (res && res->status == 200) {
+		log_info("Http msg post successed! msgId: " + std::to_string(msg.msgId));
+	}
+	else {
+		log_error("Http msg post failed! msgId:" + std::to_string(msg.msgId));
+	}
+
 	return;
 }
 
