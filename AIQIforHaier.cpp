@@ -461,7 +461,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
-	//HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
+	HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	//HANDLE hHttpPost2 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
     //HANDLE hHttpPost3 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
@@ -1475,7 +1475,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	/*最后一个gpio引脚触发事件处理结束后，发送检测结束标志*/
 	if (gpioPin == 1)
 	{
-		Sleep(500);
+		Sleep(1500);
 		struct httpMsg msg;
 		Counter.mutex.lock();
 		Counter.count++;
