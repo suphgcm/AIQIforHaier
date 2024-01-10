@@ -120,152 +120,6 @@ void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int 
 	return;
 }
 
-void HttpPost1(struct httpMsg &msg)
-{
-	HINTERNET hSession=NULL, hConnect=NULL, hRequest=NULL;
-	BOOL  bResults = FALSE;
-	DWORD dwSize = 0;
-	DWORD dwDownloaded = 0;
-	LPSTR pszOutBuffer;
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start open http!");
-	// Use WinHttpOpen to obtain a session handle.
-	hSession = WinHttpOpen(L"WinHTTP Example/1.0",
-		WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-		WINHTTP_NO_PROXY_NAME,
-		WINHTTP_NO_PROXY_BYPASS, 0);
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start connect http!");
-	// Specify an HTTP server.
-	if (hSession) {
-		hConnect = WinHttpConnect(hSession, L"192.168.0.189",
-			HTTP_POST_PORT, 0);
-	}
-	else {
-		log_error("Win http open failed! product sn: " + msg.productSn +  " ,processTemplateCode: " + msg.processesTemplateCode);
-		return;
-	}
-	//Define body
-	std::vector<char> body;
-	std::wstring headers;
-	std::wstring objectName;
-	std::wstring methods;
-	if (msg.type == MSG_TYPE_STOP) {
-		methods = L"POST";
-		/*
-				int wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, NULL, 0);
-				wchar_t* piplineCode = new wchar_t[wideCharSize];
-				MultiByteToWideChar(CP_UTF8, 0, msg.pipelineCode.c_str(), -1, piplineCode, wideCharSize);
-
-				wideCharSize = MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, NULL, 0);
-				wchar_t* productSn = new wchar_t[wideCharSize];
-				MultiByteToWideChar(CP_UTF8, 0, msg.productSn.c_str(), -1, productSn, wideCharSize);
-
-				objectName = L"/inspection/stopFlag?pipelineCode=" + (std::wstring)piplineCode;
-				objectName += L"&productSn=" + (std::wstring)productSn;
-
-				delete[] piplineCode;
-				delete[] productSn ;
-		*/
-		objectName = L"/inspection/stopFlag";
-		headers = L"Content-Type:application/json";
-
-		nlohmann::json jsonObject;
-		jsonObject["pipelineCode"] = msg.pipelineCode.c_str();
-		jsonObject["productSn"] = msg.productSn.c_str();
-		std::string jsonStr = jsonObject.dump();
-		body.insert(body.end(), jsonStr.begin(), jsonStr.end());
-		
-		
-	}
-	else 
-	{
-		methods = L"POST";
-		objectName = L"/inspection/upload";
-		headers = L"Content-Type:multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-
-		if (msg.type == MSG_TYPE_PICTURE) {
-			std::string imageName = std::to_string(msg.sampleTime) + ".jpeg";
-			// Add picture
-			AddBinaryPart(body, msg.imageBuffer, msg.imageLen, boundary, imageName);
-		}
-		else if (msg.type == MSG_TYPE_TEXT){
-			// Add TEXT
-			std::string partStart = "--" + boundary + "\r\n";
-			body.insert(body.end(), partStart.begin(), partStart.end());
-			AddTextPart(body, msg.text, boundary, "content");
-		}
-		else if (msg.type == MSG_TYPE_SOUND) {
-			std::string soundPath = projDir.c_str();
-			soundPath.append("\\temp\\");
-			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
-			auto sound = readPCMFile(soundPath + soundName);
-			// Add sound
-			AddBinaryPart(body, (unsigned char *)sound.data(), sound.size(), boundary, soundName);
-		}
-
-		std::string sampleTime = "123456789";
-		// Add text part
-		AddTextPart(body, msg.pipelineCode, boundary, "pipelineCode");
-		AddTextPart(body, msg.processesCode, boundary, "processesCode");
-		AddTextPart(body, msg.processesTemplateCode, boundary, "processesTemplateCode");
-		AddTextPart(body, msg.productSn, boundary, "productSn");
-		AddTextPart(body, msg.productSnCode, boundary, "productSnCode");
-		AddTextPart(body, msg.productSnModel, boundary, "productSnModel");
-		AddTextPart(body, sampleTime, boundary, "sampleTime");
-
-		body.pop_back();
-		body.pop_back();
-		std::string End = "--\r\n";
-		body.insert(body.end(), End.begin(), End.end());
-	
-	}
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start open request!");
-	// Create an HTTP request handle.
-	if (hConnect) {
-		hRequest = WinHttpOpenRequest(hConnect, methods.c_str(),
-			objectName.c_str(),
-			NULL, WINHTTP_NO_REFERER,
-			WINHTTP_DEFAULT_ACCEPT_TYPES,
-			0);
-	}
-	else {
-		log_error("Win http connect failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
-		WinHttpCloseHandle(hSession);
-		return;
-	}
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start send request!");
-	// Send a request.
-	if (hRequest) {
-		bResults = WinHttpSendRequest(hRequest,
-			headers.c_str(),
-			headers.length(), static_cast<LPVOID>(body.data()),
-			body.size(),
-			body.size(), 0);
-	}
-	else {
-		log_error("Win http open request failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
-		WinHttpCloseHandle(hConnect);
-		WinHttpCloseHandle(hSession);
-		return;
-	}
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "start receive request!");
-	// End the request.
-	if (bResults) {
-		bResults = WinHttpReceiveResponse(hRequest, NULL);
-	}
-	else {
-		log_error("Win http send request failed! product sn: " + msg.productSn + " ,processTemplateCode: " + msg.processesTemplateCode);
-	}
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "end receive request!");
-	// Close any open handles.
-    WinHttpCloseHandle(hRequest);
-	WinHttpCloseHandle(hConnect);
-	WinHttpCloseHandle(hSession);
-	log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + "end!");
-	return;
-}
-
 void HttpPost(struct httpMsg& msg) {
 	httplib::Client cli("192.168.0.189", HTTP_POST_PORT);
 
@@ -291,9 +145,12 @@ void HttpPost(struct httpMsg& msg) {
 		std::vector<char> body1;
 
 		if (msg.type == MSG_TYPE_PICTURE) {
-			std::string imageName = std::to_string(msg.sampleTime) + ".jpeg";
-			// Add picture
-			AddBinaryPart(body1, msg.imageBuffer, msg.imageLen, boundary, imageName);
+			for (auto it = msg.pictures.begin(); it != msg.pictures.end(); ++it)
+			{
+				std::string imageName = std::to_string(it->sampleTime) + ".jpeg";
+				// Add picture
+				AddBinaryPart(body1, it->imageBuffer, it->imageLen, boundary, imageName);
+			}
 		}
 		else if (msg.type == MSG_TYPE_TEXT) {
 			// Add TEXT
@@ -374,7 +231,10 @@ DWORD HttpPostThread(LPVOID lpParam)
 
 		if (msg.type == MSG_TYPE_PICTURE)
 		{
-			delete[] msg.imageBuffer;
+			for (auto it = msg.pictures.begin(); it != msg.pictures.end(); ++it)
+			{
+				delete[] it->imageBuffer;
+			}
 		}
 	}
 

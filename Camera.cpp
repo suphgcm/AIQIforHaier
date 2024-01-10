@@ -367,18 +367,29 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	if (!m_isGrabbing) {
 		return false;
 	}
-	//if (!CreateRecursiveDirectory(path)) {
-	//	return false;
-	//}
+
+	auto now = std::chrono::system_clock::now();
+	auto duration = now.time_since_epoch();
+	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+	ProcessUnit* unit = (ProcessUnit*)args;
+	struct httpMsg msg;
+	Counter.mutex.lock();
+	Counter.count++;
+	msg.msgId = Counter.count;
+	Counter.mutex.unlock();
+	msg.pipelineCode = pipelineCode;
+	msg.processesCode = unit->processesCode;
+	msg.processesTemplateCode = unit->processesTemplateCode;
+	msg.productSn = unit->productSn;
+	msg.productSnCode = unit->productSnCode;
+	msg.productSnModel = unit->productSnModel;
+	msg.type = MSG_TYPE_PICTURE;
+	msg.sampleTime = milliseconds;
+
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
 		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
 		MV_FRAME_OUT stOutFrame = { 0 };
-
-		//// 打开软件触发
-		//int nRet = MV_CC_SetCommandValue(m_handle, "TriggerSoftware");
-		//if (MV_OK != nRet) {
-		//	printf("Execute TriggerSoftware fail! nRet [0x%x]\n", nRet);
-		//}
 
 		int nRet = MV_CC_GetImageBuffer(m_handle, &stOutFrame, 1000);
 		if (nRet != MV_OK) {
@@ -417,68 +428,17 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			return false;
 		}
 
-		auto now = std::chrono::system_clock::now();
-		auto duration = now.time_since_epoch();
-		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+		now = std::chrono::system_clock::now();
+		duration = now.time_since_epoch();
+		milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-		ProcessUnit* unit = (ProcessUnit*)args;
-		struct httpMsg msg;
-		Counter.mutex.lock();
-		Counter.count++;
-		msg.msgId = Counter.count;
-		Counter.mutex.unlock();
-		msg.pipelineCode = pipelineCode;
-		msg.processesCode = unit->processesCode;
-		msg.processesTemplateCode = unit->processesTemplateCode;
-		msg.productSn = unit->productSn;
-		msg.productSnCode = unit->productSnCode;
-		msg.productSnModel = unit->productSnModel;
-		msg.type = MSG_TYPE_PICTURE;
-		msg.imageBuffer = to_jpeg.pImageBuffer;
-		msg.imageLen = to_jpeg.nImageLen;
-		msg.sampleTime = milliseconds;
-		Singleton::instance().push(msg);
-		log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
-/*
-		//将图片从内存保存到本地中
-		MV_SAVE_IMAGE_TO_FILE_PARAM_EX file;
-		file.nWidth = to_jpeg.nWidth;
-		file.nHeight = to_jpeg.nHeight;
-		file.enPixelType = PixelType_Gvsp_Jpeg;
-		file.pData = to_jpeg.pImageBuffer;
-		file.nDataLen = to_jpeg.nImageLen; // not initilized?
+		struct picture Picture;		
+		Picture.imageBuffer = to_jpeg.pImageBuffer;
+		Picture.imageLen = to_jpeg.nImageLen;
+		Picture.sampleTime = milliseconds;
+		msg.pictures.emplace_back(Picture);
 
-		file.enImageType = to_jpeg.enImageType;
-
-		// file path
-		std::string dir = path;
-		std::replace(dir.begin(), dir.end(), '/', '\\');
-		if (dir[dir.size() - 1] != '\\') {
-			dir += '\\';
-		}
-
-		std::string serialNumber(reinterpret_cast<const char*>(m_mvDevInfo->SpecialInfo.stGigEInfo.chSerialNumber));
-
-		auto now = std::chrono::system_clock::now();
-		auto duration = now.time_since_epoch();
-		auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-		std::string imageName = serialNumber + '_' + std::to_string(milliseconds) + ".jpeg";
-		std::string imagePath = dir + imageName; // 建立目录
-		file.pcImagePath = (char*)imagePath.c_str();
-
-		file.nQuality = to_jpeg.nJpgQuality;
-		file.iMethodValue = to_jpeg.iMethodValue;
-
-		//将图片从内存保存到本地中
-		nRet = MV_CC_SaveImageToFileEx(m_handle, &file);
-		if (nRet != MV_OK) {
-			printf("MV_CC_SaveImageToFileEx fail! nRet [0x%x]\n", nRet);
-			delete[] to_jpeg.pImageBuffer;
-			return false;
-		}
-*/
 		// 释放
-		//delete[] to_jpeg.pImageBuffer;
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
 			printf("Free Image Buffer fail! nRet [0x%x]\n", nRet);
@@ -489,6 +449,9 @@ bool Camera::GetImage(const std::string& path, void* args) {
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(m_cameraInterval));
 	}
+
+	Singleton::instance().push(msg);
+	log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 
 	return true;
 }

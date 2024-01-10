@@ -10,6 +10,12 @@ enum MSG_TYPE_E {
 	MSG_TYPE_STOP
 };
 
+struct picture {
+	long long sampleTime;
+	unsigned char* imageBuffer;
+	unsigned int imageLen;
+};
+
 struct httpMsg {
 	long long msgId;
 	std::string pipelineCode;
@@ -20,8 +26,7 @@ struct httpMsg {
 	std::string productSnModel;
 	long long sampleTime;
 	MSG_TYPE_E type;
-	unsigned char* imageBuffer;
-	unsigned int imageLen;
+	std::vector<struct picture> pictures;
 	std::string text;
 };
 
