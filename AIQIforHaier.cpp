@@ -58,7 +58,6 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 // 线程函数
 DWORD __stdcall CheckAndClearLog(LPVOID lpParam);
-DWORD __stdcall SerialCommunicationThread(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
 
@@ -1391,39 +1390,6 @@ void TriggerOn(UINT gpioPin)
 
 	HANDLE hdw = CreateThread(NULL, 0, MainWorkThread, (LPVOID)gpioPin, 0, NULL);
 	return;
-}
-
-DWORD __stdcall SerialCommunicationThread(LPVOID lpParam) {
-	//DWORD tid = GetCurrentThreadId();
-	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
-	//AppendLog(StringToLPCWSTR(logStr));
-
-	CloseHandle(GetCurrentThread());
-
-	//SerialCommunication* serialComm = nullptr;
-	//for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
-	//	if (it->second->e_deviceTypeCode == "RemoteControl") {
-	//		serialComm = dynamic_cast<SerialCommunication*>(it->second);
-	//	}
-	//}
-	//if (serialComm == nullptr) {
-	//	AppendLog(L"RemoteControl not found!\n");
-	//	return 0;
-	//}
-
-	//if (serialComm->SendMessage()) {
-	//	return 1;
-	//}
-
-	Sleep(200);
-
-	std::string pyPath = "D:\\AIQIforHaier";
-	pyPath.append("\\SerialCommunication.py");
-	std::string command = "python " + pyPath + " COM7 38400 FF1606160032A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7A6EA0000C0200080800000000B7BB7004000000000F7A6EA0000C0200080000000000BFBB7004000000000F7AD84";
-	command = "python " + pyPath + " COM7 38400 \"FF 16 06 16 00 32 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 AD 84\"";
-	system(command.c_str());
-
-	return 0;
 }
 
 DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
