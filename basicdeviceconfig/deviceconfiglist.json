@@ -369,11 +369,11 @@
         },
         {
             "deviceTypeName": "麦克风",
-            "deviceTypeId": "1699328798675996674",
+            "deviceTypeId": "1699329151165304833",
             "deviceTypeCode": "Microphone",
-            "deviceName": "Microphone XXX",
+            "deviceName": "8号线麦克风",
             "ipAddr": "127.0.0.1",
-            "deviceSn": "SN400001",
+            "deviceSn": "SN888888",
             "deviceCode": "DC100020"
         },
         {

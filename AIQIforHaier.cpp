@@ -860,7 +860,7 @@ void GetConfig(/*HWND hWnd*/) {
 	}
 	f_GETCFG = !f_GETCFG;
 	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
-/*
+
 	// 调用 GetPipelineConfig.jar
 	std::string jarPath = projDir.c_str();
 	jarPath.append("\\GetPipelineConfig.jar");
@@ -885,9 +885,8 @@ void GetConfig(/*HWND hWnd*/) {
 	}
 
 	remove(flagpath.c_str());
-*/
+
 	// 读取 pipelineConfig.json
-	//std::string configfile = ".\\productconfig\\pipelineConfig.json";
 	std::string configfile = projDir.c_str();
 	configfile.append("\\productconfig\\pipelineConfig.json");
 	std::ifstream jsonFile(configfile);
