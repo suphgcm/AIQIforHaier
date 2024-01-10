@@ -105,7 +105,7 @@ void AddTextPart(std::vector<char> &body, std::string &text, std::string &bounda
 void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int lengh, std::string& boundary, std::string fileName)
 {
 	// Add picture
-	std::string partStart = "--" + boundary + "\r\nContent-Disposition: form-data; name=\"files\"; filename=\"" + \
+	std::string partStart = "Content-Disposition: form-data; name=\"files\"; filename=\"" + \
 		fileName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
@@ -144,6 +144,10 @@ void HttpPost(struct httpMsg& msg) {
 		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
 		std::vector<char> body1;
 
+		//add first boundary
+		std::string partStart = "--" + boundary + "\r\n";
+		body1.insert(body1.end(), partStart.begin(), partStart.end());
+
 		if (msg.type == MSG_TYPE_PICTURE) {
 			for (auto it = msg.pictures.begin(); it != msg.pictures.end(); ++it)
 			{
@@ -154,8 +158,6 @@ void HttpPost(struct httpMsg& msg) {
 		}
 		else if (msg.type == MSG_TYPE_TEXT) {
 			// Add TEXT
-			std::string partStart = "--" + boundary + "\r\n";
-			body1.insert(body1.end(), partStart.begin(), partStart.end());
 			AddTextPart(body1, msg.text, boundary, "content");
 		}
 		else if (msg.type == MSG_TYPE_SOUND) {
