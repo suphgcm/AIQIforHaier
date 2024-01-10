@@ -1495,7 +1495,15 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		msg.productSnModel = unit->productSnModel;
 		msg.type = MSG_TYPE_TEXT;
 		if (!codeRes.empty()) {
-			msg.text = codeRes[0];
+			msg.text = "";
+			for (size_t i = 0; i < codeRes.size(); ++i)
+			{
+				if (codeRes[i].length() > 0)
+				{
+					msg.text = codeRes[i];
+					break;
+				}
+			}
 		}
 		else {
 			msg.text = "";
