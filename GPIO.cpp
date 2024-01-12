@@ -158,7 +158,7 @@ bool GPIO::SetGpioParam(std::string deviceTypeId, std::string deviceTypeName, st
 	GPIOBASEMSG = BASEMSG;
 	return true;
 }
-long long pin2TriggerTime;
+
 /*
 * 默认高电平，默认初始化高电平为1；
 * 触发为低电平；当从高变低的时候，复制为负的当前timestamp.ms数值；持续10ms后发消息msgon；发送结束后修改值为-1；-1不检查持续时间
@@ -212,11 +212,6 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 					long long timeMillisCount1 = timeMillis1.count();
 					std::string Log = "SendMessage time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
 					AppendLog(StringToLPCWSTR(Log));
-					if (i == 2) {
-						auto nowTime = std::chrono::system_clock::now();
-						auto timeMillisTime = std::chrono::duration_cast<std::chrono::milliseconds>(nowTime.time_since_epoch());
-						pin2TriggerTime = timeMillisTime.count();
-					}
 				}
 				pinLevel[i] = 0;
 				//				lastChange[i] = timeMillisCount;

@@ -323,8 +323,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
-	//HANDLE hHttpPost2 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
-    //HANDLE hHttpPost3 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
 	StartSelfTesting();
@@ -816,6 +814,8 @@ void StartSelfTesting(/*HWND hWnd*/) {
 				break;
 			}
 			case 6:
+				AudioEquipment * audioDevice = dynamic_cast<AudioEquipment*>(it->second);
+				testflag++;
 				break;
 			default:
 				break;
@@ -1272,7 +1272,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 
 	std::string logStr = "Product " + productSn + " scanned!\n";
 	AppendLog(StringToLPCWSTR(logStr));
-	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + "Scaned!");
+	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
 
 	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
 	auto now3 = std::chrono::system_clock::now();
