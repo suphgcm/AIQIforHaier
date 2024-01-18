@@ -7,7 +7,9 @@
 #include "libsndfile/sndfile.h"
 #include <string>
 #include <vector>
+#include <filesystem>
 #include "AudioEquipment.h"
+#include "Log.h"
 #pragma comment(lib, "winmm.lib")
 
 PaDeviceIndex AudioEquipment::GetASIODeviceByName(const std::string& deviceName) const {
@@ -63,9 +65,9 @@ PaError AudioEquipment::Terminate() {
 	return paError;
 }
 
-int AudioEquipment::ReadFile(const std::string& fileName) {
+int AudioEquipment::ReadFile(const std::string& dirPath) {
 	using namespace std;
-
+/*
 	ifstream inputFile;
 	inputFile.open(fileName, ios::binary); // todo: 处理异常
 	filebuf* pbuf = inputFile.rdbuf();
@@ -77,7 +79,29 @@ int AudioEquipment::ReadFile(const std::string& fileName) {
 	m_fileBuffer[m_fileSize] = '\0'; // 空字符 '\0' 标识字符串结束
 
 	inputFile.close();
+*/
 
+	for (const auto& entry : std::filesystem::directory_iterator(dirPath)) {
+		std::string fileName = entry.path().string();
+		std::string extension = entry.path().extension().string();
+
+		if (extension == ".pcm") {
+			std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+			if (file.is_open()) {
+
+				std::streamsize size = file.tellg();
+				file.seekg(0, std::ios::beg);
+
+				char* buffer = new char[size];
+				if (file.read(buffer, size)) {
+					AudioFile audioFile = { fileName, buffer, size };
+					m_audioFile.push_back(audioFile);
+				}
+
+				file.close();
+			}
+		}
+	}
 	return 0;
 }
 
@@ -511,14 +535,25 @@ int AudioEquipment::CutFile(const std::string& inFile, const std::string& outFil
 	return ret;
 }
 
-void AudioEquipment::PlayAudio(WAVEFORMATEX* pFormat) {
+void AudioEquipment::PlayAudio(WAVEFORMATEX* pFormat, std::string audioFileName) {
 	HWAVEOUT hWaveOut;
 	WAVEHDR WaveOutHdr;
-
+	struct AudioFile *audioFile;
+	int i = 0;
+	for (i = 0; i < m_audioFile.size(); i++) {
+		if (m_audioFile[i].audioFileName == audioFileName) {
+			break;
+		}
+	}
+	if (i >= m_audioFile.size())
+	{
+		log_error("Play audio Error, not found audio file " + audioFileName);
+		return;
+	}
 	waveOutOpen(&hWaveOut, WAVE_MAPPER, pFormat, 0L, 0L, WAVE_FORMAT_DIRECT);
 
-	WaveOutHdr.lpData = m_fileBuffer;
-	WaveOutHdr.dwBufferLength = m_fileSize;
+	WaveOutHdr.lpData = m_audioFile[i].fileBuffer;
+	WaveOutHdr.dwBufferLength = m_audioFile[i].fileSize;
 	WaveOutHdr.dwBytesRecorded = 0;
 	WaveOutHdr.dwUser = 0L;
 	WaveOutHdr.dwFlags = 0L;

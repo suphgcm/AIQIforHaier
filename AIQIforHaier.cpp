@@ -792,9 +792,9 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 4: { // 音频
 				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
 				
-				std::string soundFile = projDir.c_str();
-				soundFile.append("\\sounds\\upset.pcm"); // todo: 根据配置设置播放的音频文件
-				audioDevice->ReadFile(soundFile);
+				std::string soundFilePath = projDir.c_str();
+				soundFilePath.append("\\sounds\\");
+				audioDevice->ReadFile(soundFilePath);
 
 				//int ret = audioDevice->Init(soundFile); // todo: 解决未找到音频设备时抛出异常的问题
 
@@ -813,10 +813,11 @@ void StartSelfTesting(/*HWND hWnd*/) {
 				//}
 				break;
 			}
-			case 6:
-				AudioEquipment * audioDevice = dynamic_cast<AudioEquipment*>(it->second);
+			case 6: {
+				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
 				testflag++;
 				break;
+			}
 			default:
 				break;
 			}
@@ -910,6 +911,7 @@ void GetConfig(/*HWND hWnd*/) {
 			std::string productName = productConfig["productName"];
 			std::string productSnCode = productConfig["productSnCode"]; //前9个字符，码枪扫出的
 			std::string productSnModel = productConfig["productSnModel"];
+			std::string audioFileName = productConfig["audioFileName"];
 			Product* tmpProduct = new Product(productSnCode, productName, productSnModel);
 
 			// processesMap and testListMap
@@ -1077,6 +1079,7 @@ void GetConfig(/*HWND hWnd*/) {
 						break;
 					}
 					case 4: {//Speaker设备
+						curUnit->audioFileName = audioFileName;
 						curUnit->deviceTypeCode = deviceCfg["deviceTypeCode"];
 						curUnit->deviceCode = deviceCfg["deviceCode"];
 						curUnit->eq = deviceMap[curUnit->deviceCode];
@@ -1400,20 +1403,6 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	bool sameProductSn = param->sameProductSnCode;
 	delete(param);
 	std::string path = projDir.c_str();
-	//add replace productionSnModel / to _
-	//std::string tmpProductionSnModel = unit->productSnModel.replace(unit->productSnModel.begin(), unit->productSnModel.end(), "/", "_");
-
-
-	//path += "\\" + pipelineCode + "\\" + unit->productSnModel + "\\" + unit->productSn + "\\" + unit->processesCode;
-
-	nlohmann::json args;
-	args["pipelineCode"] = pipelineCode;
-	args["processesCode"] = unit->processesCode;
-	args["processesTemplateCode"] = unit->processesTemplateCode;
-	args["productSn"] = unit->productSn;
-	args["productSnCode"] = unit->productSnCode;
-	args["productSnModel"] = unit->productSnModel;
-	args["sampleTime"] = 111;
 
 	std::string logStr = "device type: " + unit->deviceTypeCode + " ,device code: " + unit->deviceCode + " called!\n";
 	AppendLog(StringToLPCWSTR(logStr));
@@ -1434,6 +1423,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	case 3: { // ScanningGun
 		CodeReader* deviceCR = dynamic_cast<CodeReader*>(unit->eq);
 		log_info("Scan coder " + deviceCR->e_deviceCode + " be called!");
+
 		deviceCR->Lock();
 		if (sameProductSn == FALSE)
 		{
@@ -1442,10 +1432,6 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		std::vector<std::string> codeRes;
 		int crRet = deviceCR->ReadCode(codeRes);
 		deviceCR->UnLock();
-//		args["content"] = codeRes;
-//		std::ofstream file(path + "\\requestArgs.json");
-//		file << args.dump(4) << std::endl;
-//		file.close();
 
 		struct httpMsg msg;
 		Counter.mutex.lock();
@@ -1529,7 +1515,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
 		format.cbSize = 0;
 
-		audioDevice->PlayAudio(&format);
+		audioDevice->PlayAudio(&format, unit->audioFileName);
 		break;
 	}
 	case 5: { // RemoteControl

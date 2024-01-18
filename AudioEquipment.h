@@ -8,6 +8,13 @@
 #include "PortAudio/pa_ringbuffer.h"
 #include "PortAudio/pa_util.h"
 
+
+struct AudioFile {
+	std::string audioFileName;
+	char* fileBuffer;
+	long fileSize;
+};
+
 // 声音播放和录制
 class AudioEquipment :
 	public equnit 
@@ -41,6 +48,7 @@ private:
 	PaDeviceIndex m_deviceIndex = -1;
 	char* m_fileBuffer = nullptr; // 音频文件
 	long m_fileSize = -1;
+	std::vector<struct AudioFile> m_audioFile;
 
 	PaDeviceIndex GetASIODeviceByName(const std::string& deviceName) const;
 	unsigned NextPowerOf2(unsigned val) const;
@@ -53,8 +61,13 @@ public:
 	AudioEquipment(std::string deviceTypeId, std::string deviceTypeName, std::string deviceTypeCode, std::string deviceCode, std::string deviceName) :
 		equnit(deviceTypeId, deviceTypeName, deviceTypeCode, deviceCode, deviceName) {}
 	~AudioEquipment() {
+		/*
 		if (m_fileBuffer != nullptr) {
 			delete[] m_fileBuffer;
+		}
+		*/
+		for (auto it = m_audioFile.begin(); it != m_audioFile.end(); it++) {
+			delete[] it->fileBuffer;
 		}
 	}
 
@@ -69,6 +82,6 @@ public:
 	int To16k(const std::string& inFileName, const std::string& outFileName) const;
 	int CutFile(const std::string& inFile, const std::string& outFile, int startSecond, int endSecond);
 	// 顺序：Init -> record -> 48000_to_16000 -> seperate channel -> crop -> Terminate
-	void PlayAudio(WAVEFORMATEX* pFormat);
+	void PlayAudio(WAVEFORMATEX* pFormat, std::string audioFileName);
 	int RecordAudio(WAVEFORMATEX* pFormat, int seconds, std::string recordFile);
 };

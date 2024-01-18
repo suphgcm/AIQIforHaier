@@ -24,6 +24,7 @@ struct ProcessUnit {
 	std::string processesCode;
 	std::string processesTemplateCode;
 	std::string processesTemplateName;
+	std::string audioFileName;
 
 	ProcessUnit* prevunit = nullptr;
 	ProcessUnit* nextunit = nullptr;
