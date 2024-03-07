@@ -437,7 +437,20 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		Picture.imageLen = to_jpeg.nImageLen;
 		Picture.sampleTime = milliseconds;
 		msg.pictures.emplace_back(Picture);
-
+/*
+		std::string filePath = projDir.c_str();
+		filePath.append("\\" + pipelineCode + "\\" + unit->productSn + "\\" + unit->processesCode + "\\" + std::to_string(milliseconds) + ".jpeg");
+		std::filesystem::create_directories(filePath.substr(0, filePath.find_last_of('\\')));
+		FILE* fp = nullptr;
+		fopen_s(&fp, filePath.c_str(), "wb");
+		if (fp == nullptr) {
+			std::cout << "Open file failed!" << std::endl;
+		}
+		else {
+			fwrite(to_jpeg.pImageBuffer, 1, to_jpeg.nImageLen, fp);
+			fclose(fp);
+		}
+*/
 		// ÊÍ·Å
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
