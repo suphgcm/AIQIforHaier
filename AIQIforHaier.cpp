@@ -315,12 +315,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	LoadStringW(hInstance, IDC_AIQIFORHAIER, szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
 
-	// 执行应用程序初始化:
+/*	// 执行应用程序初始化:
 	if (!InitInstance(hInstance, nCmdShow))
 	{
 		return FALSE;
 	}
-
+*/
 	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
@@ -813,10 +813,11 @@ void StartSelfTesting(/*HWND hWnd*/) {
 				//}
 				break;
 			}
-			case 6:
-				AudioEquipment * audioDevice = dynamic_cast<AudioEquipment*>(it->second);
+			case 6: {
+				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
 				testflag++;
 				break;
+			}
 			default:
 				break;
 			}
