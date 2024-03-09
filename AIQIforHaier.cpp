@@ -911,7 +911,12 @@ void GetConfig(/*HWND hWnd*/) {
 			std::string productName = productConfig["productName"];
 			std::string productSnCode = productConfig["productSnCode"]; //前9个字符，码枪扫出的
 			std::string productSnModel = productConfig["productSnModel"];
-			std::string audioFileName = productConfig["audioFileName"];
+			std::string audioFileName = "xiaoyouxiaoyou";
+			if (productConfig.contains("audioFileName"))
+			{
+				audioFileName = productConfig["audioFileName"];			
+			}
+
 			Product* tmpProduct = new Product(productSnCode, productName, productSnModel);
 
 			// processesMap and testListMap

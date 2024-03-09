@@ -94,7 +94,7 @@ int AudioEquipment::ReadFile(const std::string& dirPath) {
 
 				char* buffer = new char[size];
 				if (file.read(buffer, size)) {
-					AudioFile audioFile = { fileName, buffer, size };
+					AudioFile audioFile = { entry.path().stem().string(), buffer, size};
 					m_audioFile.push_back(audioFile);
 				}
 
