@@ -60,6 +60,12 @@
     <ClInclude Include="MessageQueue.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="Log.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="WzSerialPort.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AIQIforHaier.cpp">
@@ -99,6 +105,12 @@
       <Filter>源文件\PortAudio</Filter>
     </ClCompile>
     <ClCompile Include="SerialCommunication.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Log.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="WzSerialPort.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
