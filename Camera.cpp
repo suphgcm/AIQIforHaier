@@ -363,6 +363,12 @@ void Camera::UnLock() {
 	m_mutex.unlock();
 }
 
+extern struct UnitWorkPara
+{
+	ProcessUnit* procUnit;
+	httpMsg msg;
+};
+
 bool Camera::GetImage(const std::string& path, void* args) {
 	if (!m_isGrabbing) {
 		return false;
@@ -372,20 +378,22 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	auto duration = now.time_since_epoch();
 	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-	ProcessUnit* unit = (ProcessUnit*)args;
-	struct httpMsg msg;
+	struct UnitWorkPara* param = static_cast<struct UnitWorkPara*>(args);
+	ProcessUnit* unit = param->procUnit;
+
+	struct httpMsg *msg = &param->msg;
 	Counter.mutex.lock();
 	Counter.count++;
-	msg.msgId = Counter.count;
+	msg->msgId = Counter.count;
 	Counter.mutex.unlock();
-	msg.pipelineCode = pipelineCode;
-	msg.processesCode = unit->processesCode;
-	msg.processesTemplateCode = unit->processesTemplateCode;
-	msg.productSn = unit->productSn;
-	msg.productSnCode = unit->productSnCode;
-	msg.productSnModel = unit->productSnModel;
-	msg.type = MSG_TYPE_PICTURE;
-	msg.sampleTime = milliseconds;
+	msg->pipelineCode = pipelineCode;
+	msg->processesCode = unit->processesCode;
+	msg->processesTemplateCode = unit->processesTemplateCode;
+//	msg->productSn = unit->productSn;
+//	msg->productSnCode = unit->productSnCode;
+	msg->productSnModel = unit->productSnModel;
+	msg->type = MSG_TYPE_PICTURE;
+	msg->sampleTime = milliseconds;
 
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
 		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
@@ -436,7 +444,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		Picture.imageBuffer = to_jpeg.pImageBuffer;
 		Picture.imageLen = to_jpeg.nImageLen;
 		Picture.sampleTime = milliseconds;
-		msg.pictures.emplace_back(Picture);
+		msg->pictures.emplace_back(Picture);
 /*
 		std::string filePath = projDir.c_str();
 		filePath.append("\\" + pipelineCode + "\\" + unit->productSn + "\\" + unit->processesCode + "\\" + std::to_string(milliseconds) + ".jpeg");
@@ -462,10 +470,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(m_cameraInterval));
 	}
-
+/*
 	Singleton::instance().push(msg);
 	log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
-
+*/
 	return true;
 }
 

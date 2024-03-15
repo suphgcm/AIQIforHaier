@@ -1193,24 +1193,19 @@ DWORD __stdcall InfraredRemoteCtlThread(LPVOID lpParam) {
 
 struct UnitWorkPara
 {
-	bool sameProductSnCode;
 	ProcessUnit* procUnit;
+	httpMsg msg;
 };
 
-DWORD __stdcall MainWorkThread(LPVOID lpParam) {
-	CloseHandle(GetCurrentThread());
-	int gpioPin = (int)lpParam;
-	std::string triggerLog = "*lpParam = " + std::to_string(gpioPin) + "\n";
+struct CodeReaderPara {
+	int gpioPin;
+	bool result;
+	string productSn;
+};
 
-	if (gpioPin == 4)
-	{
-		CreateThread(NULL, 0, InfraredRemoteCtlThread, NULL, 0, NULL);
-		return 0;
-	}
-
-	auto now1 = std::chrono::system_clock::now();
-	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long long timeMillisCount1 = timeMillis1.count();
+DWORD __stdcall CodeReaderThread(LPVOID lpParam) {
+	struct CodeReaderPara* param = static_cast<struct CodeReaderPara*>(lpParam);
+	int gpioPin = param->gpioPin;
 
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
 	// 得到产品序列号前9位
@@ -1219,22 +1214,18 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	for (std::string codereader : vcodereaders) {
 		auto it = deviceMap.find(codereader);
 		if (it == deviceMap.end()) {
-			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
-			AppendLog(_T("光电开关故障\n"));
 			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
 			return 0;
 		}
+
 		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-		std::string logStr = "CodeReader " + CR->e_deviceCode + " called! " + std::to_string(CR->GetAcquisitionBurstFrameCount()) + " frames\n";
-		AppendLog(StringToLPCWSTR(logStr));
 		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
 		std::vector<std::string> results;
 		CR->Lock();
 		int crRet = CR->ReadCode(results);
 		CR->UnLock();
 		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
-		logStr = "CodeReader " + CR->e_deviceCode + " ret: " + std::to_string(crRet) + "\n";
-		AppendLog(StringToLPCWSTR(logStr));
+
 		if (!results.empty())
 		{
 			break;
@@ -1242,7 +1233,6 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	}
 
 	if (codereaderresults.empty()) {
-		AppendLog(_T("扫码结果为空！\n"));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
 		return 0;
 	}
@@ -1255,80 +1245,59 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		}
 	}
 	if (productSn.length() < 13) {
-		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan  product sn code failed, product sn length less than 13!");
 		return 0;
 	}
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
 
-	auto now2 = std::chrono::system_clock::now();
-	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-	long long timeMillisCount2 = timeMillis2.count();
-	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
-	AppendLog(StringToLPCWSTR(Log));
+	param->result = true;
+	param->productSn = productSn;
 
-	std::string productSnCode = productSn.substr(0, 9);
+	return 0;
+}
+
+DWORD __stdcall MainWorkThread(LPVOID lpParam) {
+	CloseHandle(GetCurrentThread());
+	int gpioPin = (int)lpParam;
+	std::vector<HANDLE> handles;
+
+	struct CodeReaderPara param;
+	param.gpioPin = gpioPin;
+	param.result = false;
+	HANDLE hCodeReader = CreateThread(NULL, 0, CodeReaderThread, &param, 0, NULL);
+	handles.push_back(hCodeReader);
+
+	std::string productSnCode = "XXXXXXXXX";
 
 	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
 	auto productItem = productMap.find(productSnCode);
 	if (productItem == productMap.end()) {
-		std::string logStr = "Product " + productSnCode + " does not exist!\n";
-		AppendLog(StringToLPCWSTR(logStr));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
 		return 0;
 	}
 
-	std::string logStr = "Product " + productSn + " scanned!\n";
-	AppendLog(StringToLPCWSTR(logStr));
-	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
-
 	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
-	auto now3 = std::chrono::system_clock::now();
-	auto duration_in_milliseconds3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
-	long startTime = duration_in_milliseconds3.count();
 
-	auto it = map2bTest.find(gpioPin);
-	if (it == map2bTest.end()) {
-		AppendLog(L"map2bTest init error!");
-		return 0;
-	}
-    std::string lastProductSnCode = it->second->productSnCode;
-	it->second->pinNumber = gpioPin;
-	it->second->productSn = productSn;
-	it->second->productSnCode = productSnCode;
-	it->second->processUnitListHead = head;
-	it->second->shotTimestamp = startTime;
-
-	product2btest* myp2btest = it->second;
-	std::vector<HANDLE> handles;
 	auto now = std::chrono::system_clock::now();
 	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 	long start = duration_in_milliseconds.count();
 
-	ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
-	int count = 0;
-	int gpiopin = myp2btest->processUnitListHead->pin;
-	while (tmpFind != myp2btest->processUnitListHead) {
+	struct UnitWorkPara UnitParam[5];
+	ProcessUnit* tmpFind = head->nextunit;
+	int unitCount = 0;
+	while (tmpFind != head) {
 		auto now = std::chrono::system_clock::now();
 		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 		long runla = duration_in_milliseconds.count();
 
 		// 加句柄队列
 		if ((runla - start) >= tmpFind->laterncy) {
-			tmpFind->productSn = myp2btest->productSn;
-			struct UnitWorkPara* param = new(struct UnitWorkPara);
-			if (lastProductSnCode == productSnCode)
-			{
-				param->sameProductSnCode = TRUE;
-			}
-			else
-			{
-				param->sameProductSnCode = FALSE;
-			}
-			param->procUnit = tmpFind;
-			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, param, 0, NULL);
+
+			UnitParam[unitCount].procUnit = tmpFind;
+			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, &UnitParam[unitCount], 0, NULL);
 			handles.push_back(hUnitWork);
 			tmpFind = tmpFind->nextunit;
+			unitCount++;
 		}
 		else {
 			Sleep(10);
@@ -1340,22 +1309,34 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		CloseHandle(handle);
 	}
 
-	/*最后一个gpio引脚触发事件处理结束后，发送检测结束标志*/
-	if (gpioPin == 1)
-	{
-		Sleep(1500);
+	if (param.result == true) {
+		for (int i = 0; i < unitCount; i++) {
+			httpMsg& msg = UnitParam[i].msg;
+			msg.productSn = param.productSn;
+			msg.productSnCode = param.productSn.substr(0, 9);
+			log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
+			Singleton::instance().push(UnitParam[i].msg);
+		}
 		struct httpMsg msg;
 		Counter.mutex.lock();
 		Counter.count++;
 		msg.msgId = Counter.count;
 		Counter.mutex.unlock();
 		msg.pipelineCode = pipelineCode;
-		msg.productSn = productSn;
+		msg.productSn = param.productSn;
 		msg.type = MSG_TYPE_STOP;
 
 		Singleton::instance().push(msg);
 		log_info("push stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
 	}
+	else {
+		for (int i = 0; i < unitCount; i++) {
+			for (int j = 0; j < UnitParam[i].msg.pictures.size(); j++) {
+				delete[] UnitParam[i].msg.pictures[j].imageBuffer;
+			}
+		}
+	}
+
 	return 0;
 }
 
@@ -1405,8 +1386,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	//AppendLog(StringToLPCWSTR(logStr));
 	struct UnitWorkPara *param = static_cast<struct UnitWorkPara *>(lpParam);
 	ProcessUnit* unit = param->procUnit;
-	bool sameProductSn = param->sameProductSnCode;
-	delete(param);
+
 	std::string path = projDir.c_str();
 
 	std::string logStr = "device type: " + unit->deviceTypeCode + " ,device code: " + unit->deviceCode + " called!\n";
@@ -1417,24 +1397,19 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
 		log_info("Camera " + devicecm->e_deviceCode + " be called!");
 		devicecm->Lock();
-		if (sameProductSn == FALSE)
-		{
-			devicecm->SetValuesByJson(unit->parameter);
-		}
-		devicecm->GetImage(path, unit);
+		devicecm->SetValuesByJson(unit->parameter);
+//		devicecm->GetImage(path, unit);
+		devicecm->GetImage(path, param);
 		devicecm->UnLock();
 		break;
 	}
 	case 3: { // ScanningGun
 		CodeReader* deviceCR = dynamic_cast<CodeReader*>(unit->eq);
+		std::vector<std::string> codeRes;
 		log_info("Scan coder " + deviceCR->e_deviceCode + " be called!");
 
 		deviceCR->Lock();
-		if (sameProductSn == FALSE)
-		{
-			deviceCR->SetValuesByJson(unit->parameter);
-		}
-		std::vector<std::string> codeRes;
+		deviceCR->SetValuesByJson(unit->parameter);
 		int crRet = deviceCR->ReadCode(codeRes);
 		deviceCR->UnLock();
 
