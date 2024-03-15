@@ -40,8 +40,8 @@ HANDLE hMainWork[8]; // 当前线程句柄
 std::list<HANDLE> allMainWorkHandles; // 所有线程句柄
 int remoteCtrlPin;
 
-std::string baseUrl = "http://192.168.0.189:10001";
-std::string pipelineCode = "CX202309141454000002"; // 一台工控机只跑一个 pipeline
+std::string baseUrl = "http://10.142.193.10:10001";
+std::string pipelineCode = "CX202401261510000001"; // 一台工控机只跑一个 pipeline
 std::string pipelineName;
 
 HINSTANCE hInst;                                // 当前实例
@@ -120,7 +120,7 @@ void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int 
 }
 
 void HttpPost(struct httpMsg& msg) {
-	httplib::Client cli("192.168.0.189", HTTP_POST_PORT);
+	httplib::Client cli("10.142.193.10", HTTP_POST_PORT);
 
 	std::string path;
 	httplib::Headers headers;
@@ -284,9 +284,9 @@ DWORD HttpServer(LPVOID lpParam)
 	svr.Post("/alarm", [](const httplib::Request& req, httplib::Response& res) {
 		log_info("Current device test failed, alarm!");
         GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find("DC500001")->second);
-        deviceGPIO->SetPinLevel(5, 1);
+        deviceGPIO->SetPinLevel(6, 1);
         std::this_thread::sleep_for(std::chrono::seconds(3));
-        deviceGPIO->SetPinLevel(5, 0);
+        deviceGPIO->SetPinLevel(6, 0);
 
         res.set_content(req.body, "application/json");
     });

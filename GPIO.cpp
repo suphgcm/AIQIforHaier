@@ -137,7 +137,8 @@ void GPIO::SetPinLevel(const char pinNumber, int level) {
 	
 	bool ret = hUhi->SetGpioState(pinNumber, state);
 	if (ret != true) {
-		std::cerr << "getPinLevel failed: " << "-1" << std::endl;
+		std::cerr << "SetPinLevel failed: " << "-1" << std::endl;
+		log_error("Set Pin " + std::to_string(pinNumber) + " Level failed!");
 		return;
 	}
 
