@@ -308,7 +308,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	projDir.reserve(dirLen);
 	GetCurrentDirectoryA(dirLen, &projDir[0]);
 	HANDLE hClearLog = CreateThread(NULL, 0, CheckAndClearLog, NULL, 0, NULL);
-	log_init("AIQIForHaier","D:/AIQIforHaier/logs/rotating.txt", 1048576 * 50, 3);
+
+	std::string logPath = projDir.c_str();
+	logPath.append("\\logs\\rotating.txt");
+	log_init("AIQIForHaier",logPath, 1048576 * 50, 3);
 
 	// 初始化全局字符串
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
