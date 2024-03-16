@@ -1331,8 +1331,9 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	}
 	else {
 		for (int i = 0; i < unitCount; i++) {
-			for (int j = 0; j < UnitParam[i].msg.pictures.size(); j++) {
-				delete[] UnitParam[i].msg.pictures[j].imageBuffer;
+			struct httpMsg& msg = UnitParam[i].msg;
+			for (int j = 0; j < msg.pictures.size(); j++) {
+				delete[] msg.pictures[j].imageBuffer;
 			}
 		}
 	}
