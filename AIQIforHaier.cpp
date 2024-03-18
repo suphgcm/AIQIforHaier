@@ -89,7 +89,7 @@ std::vector<char> readPCMFile(const std::string& filename) {
 void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary, std::string name)
 {
 	std::string textPartStart = "Content-Disposition: form-data; name=\""+ name + \
-		"\"\r\nContent-Type:text-plain; charset=ISO-8859-1\r\nContent-Transfer-Encoding: 8bit\r\n\r\n";
+		"\"\r\nContent-Type:text/plain\r\n\r\n";
 	body.insert(body.end(), textPartStart.begin(), textPartStart.end());
 
 	std::string textData = text;
@@ -101,11 +101,19 @@ void AddTextPart(std::vector<char> &body, std::string &text, std::string &bounda
 	return;
 }
 
-void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int lengh, std::string& boundary, std::string fileName)
+void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int lengh, std::string& boundary, std::string fileName, MSG_TYPE_E binaryType)
 {
+	std::string contentType;
+	if (binaryType == MSG_TYPE_PICTURE) {
+		contentType = "image/jpeg";
+	}
+	else {
+		contentType = "audio/basic";
+	}
+
 	// Add picture
 	std::string partStart = "Content-Disposition: form-data; name=\"files\"; filename=\"" + \
-		fileName + "\"\r\nContent-Type: multipart/form-data; charset=ISO-8859-1\r\nContent-Transfer-Encoding: binary\r\n\r\n";
+		fileName + "\"\r\nContent-Type: " +  contentType + "\r\n\r\n";
 	body.insert(body.end(), partStart.begin(), partStart.end());
 
 	for (int i = 0; i < lengh; i++)
@@ -152,7 +160,7 @@ void HttpPost(struct httpMsg& msg) {
 			{
 				std::string imageName = std::to_string(it->sampleTime) + ".jpeg";
 				// Add picture
-				AddBinaryPart(body1, it->imageBuffer, it->imageLen, boundary, imageName);
+				AddBinaryPart(body1, it->imageBuffer, it->imageLen, boundary, imageName, MSG_TYPE_PICTURE);
 			}
 		}
 		else if (msg.type == MSG_TYPE_TEXT) {
@@ -165,7 +173,10 @@ void HttpPost(struct httpMsg& msg) {
 			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
 			auto sound = readPCMFile(soundPath + soundName);
 			// Add sound
-			AddBinaryPart(body1, (unsigned char*)sound.data(), sound.size(), boundary, soundName);
+			AddBinaryPart(body1, (unsigned char*)sound.data(), sound.size(), boundary, soundName, MSG_TYPE_PICTURE);
+		}
+		else {
+			log_error("Invalid msg type, msgType: " + std::to_string(msg.type) + ", msgId: " + std::to_string(msg.msgId));
 		}
 
 		std::string sampleTime = "123456789";
