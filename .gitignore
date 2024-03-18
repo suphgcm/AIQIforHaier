@@ -1,8 +1,7 @@
 .vs/
 x64/
-PostFiles.log
-sounds/audio_data.raw
-post/
-CX202309141454000002/
+sounds/
 logs/
 temp/
+productconfig/pipelineConfig.json
+basicdeviceconfig/deviceconfiglist.json
