@@ -2,3 +2,5 @@
 x64/
 logs/
 temp/
+productconfig/pipelineConfig.json
+basicdeviceconfig/deviceconfiglist.json
