@@ -1294,7 +1294,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	HANDLE hCodeReader = CreateThread(NULL, 0, CodeReaderThread, &param, 0, NULL);
 	handles.push_back(hCodeReader);
 
-	std::string productSnCode = "XXXXXXXXX";
+	std::string productSnCode = "AA8MN1007";
 
 	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
 	auto productItem = productMap.find(productSnCode);
@@ -1335,15 +1335,35 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		WaitForSingleObject(handle, INFINITE);
 		CloseHandle(handle);
 	}
+	
+	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
+    productSnCode = param.productSn.substr(0, 9);
+	productItem = productMap.find(productSnCode);
+	if (productItem == productMap.end()) {
+		log_error("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
+		return 0;
+	}
+	head = productItem->second->testListMap->find(gpioPin)->second;
 
 	if (param.result == true) {
 		for (int i = 0; i < unitCount; i++) {
+			ProcessUnit* tmpFind = head->nextunit;
+			while (tmpFind != head) {
+				if (tmpFind->processesTemplateCode == UnitParam[i].msg.processesTemplateCode) {
+					break;
+				}
+				tmpFind = tmpFind->nextunit;
+			}
+
 			httpMsg& msg = UnitParam[i].msg;
 			msg.productSn = param.productSn;
 			msg.productSnCode = param.productSn.substr(0, 9);
+			msg.processesCode = tmpFind->processesCode;
+			msg.productSnModel = tmpFind->productSnModel;
 			log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 			Singleton::instance().push(UnitParam[i].msg);
 		}
+
 		struct httpMsg msg;
 		Counter.mutex.lock();
 		Counter.count++;
@@ -1352,7 +1372,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		msg.pipelineCode = pipelineCode;
 		msg.productSn = param.productSn;
 		msg.type = MSG_TYPE_STOP;
-
+		Sleep(2500);
 		Singleton::instance().push(msg);
 		log_info("push stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
 	}
