@@ -874,31 +874,44 @@ void GetConfig(/*HWND hWnd*/) {
 	}
 	f_GETCFG = !f_GETCFG;
 	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
+	bool bExist = true;
+	int count = 0;
+	for (count = 0; count < 3; count++) {
+		bExist = true;
+		// 调用 GetPipelineConfig.jar
+		std::string jarPath = projDir.c_str();
+		jarPath.append("\\GetPipelineConfig.jar");
+		std::string cfgDir = projDir.c_str();
+		cfgDir.append("\\productconfig\\");
+		std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
+		std::system(command.c_str());
 
-	// 调用 GetPipelineConfig.jar
-	std::string jarPath = projDir.c_str();
-	jarPath.append("\\GetPipelineConfig.jar");
-	std::string cfgDir = projDir.c_str();
-	cfgDir.append("\\productconfig\\");
-	std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
-    std::system(command.c_str());
-
-	// 检查 flag
-	std::string flagpath = projDir.c_str();
-	flagpath.append("\\productconfig\\flag");
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-	while (INVALID_FILE_ATTRIBUTES == GetFileAttributes(StringToWstring(flagpath).c_str())) {
-		now = std::chrono::system_clock::now();
-		auto duration_now_in_seconds_now = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-		if ((duration_now_in_seconds_now.count() - duration_in_seconds.count()) > 20) {
-			AppendLog(_T("等待配置文件超时，超时时间为20秒\n"));
-			return;
+		// 检查 flag
+		std::string flagpath = projDir.c_str();
+		flagpath.append("\\productconfig\\flag");
+		auto now = std::chrono::system_clock::now();
+		auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+		while (INVALID_FILE_ATTRIBUTES == GetFileAttributes(StringToWstring(flagpath).c_str())) {
+			now = std::chrono::system_clock::now();
+			auto duration_now_in_seconds_now = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+			if ((duration_now_in_seconds_now.count() - duration_in_seconds.count()) > 20) {
+				AppendLog(_T("等待配置文件超时，超时时间为20秒\n"));
+				bExist = false;
+				break;
+			}
+			Sleep(1000);
 		}
-		Sleep(1000);
+
+		remove(flagpath.c_str());
+		if (bExist == true)
+		{
+			break;
+		}
 	}
 
-	remove(flagpath.c_str());
+	if (count >= 3) {
+		return;
+	}
 
 	// 读取 pipelineConfig.json
 	std::string configfile = projDir.c_str();
