@@ -469,6 +469,24 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	return true;
 }
 
+bool Camera::GetImageX() {
+	if (!m_isGrabbing) {
+		return false;
+	}
+
+	MV_FRAME_OUT stOutFrame = { 0 };
+
+	int nRet = MV_CC_GetImageBuffer(m_handle, &stOutFrame, 1000);
+	if (nRet != MV_OK) {
+		printf("Get Image Buffer fail! nRet [0x%x]\n", nRet);
+		return false;
+	}
+
+	MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
+
+	return true;
+}
+
 //void MyClass::SetFieldsByJson(const std::string& jsonString) {
 //	using json = nlohmann::json;
 //	using string = std::string;

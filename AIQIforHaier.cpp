@@ -783,6 +783,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 				Camera* deviceCamera = dynamic_cast<Camera*>(it->second);
 				if (deviceCamera->GetCameraByIpAddress() && deviceCamera->Init()) {
 					deviceCamera->StartGrabbing();
+					deviceCamera->GetImageX();
 					testflag++;
 				}
 				else {

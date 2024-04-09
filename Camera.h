@@ -43,6 +43,7 @@ public:
     bool StopGrabbing();
 
     bool GetImage(const std::string& path, void* args); // 指定文件夹，得到 jpeg 格式图片并上传
+    bool GetImageX();
     void Lock();
     void UnLock();
     // 执行顺序：SetValuesByJson -> Init -> SetValuesByJson -> StartGrabbing -> GetImage -> StopGrabbing -> SetValuesByJson -> StartGrabbing -> GetImage -> StopGrabbing -> Destroy
