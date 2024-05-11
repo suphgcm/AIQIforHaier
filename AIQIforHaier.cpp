@@ -295,9 +295,9 @@ DWORD HttpServer(LPVOID lpParam)
 	svr.Post("/alarm", [](const httplib::Request& req, httplib::Response& res) {
 		log_info("Current device test failed, alarm!");
         GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find("DC500001")->second);
-        deviceGPIO->SetPinLevel(6, 1);
+        deviceGPIO->SetPinLevel(5, 1);
         std::this_thread::sleep_for(std::chrono::seconds(3));
-        deviceGPIO->SetPinLevel(6, 0);
+        deviceGPIO->SetPinLevel(5, 0);
 
         res.set_content(req.body, "application/json");
     });
@@ -345,8 +345,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
 
-	MSG msg;
+	struct gpioMsg ioMsg;
+	ioMsg.gpioPin = 1;
+	ioMsg.message = WM_GPIO_ON;
+	GpioMessageQueue.push(ioMsg);
 
+	MSG msg;
 	// 主消息循环:
 	while (GetMessage(&msg, nullptr, 0, 0))
 	{
@@ -1341,6 +1345,12 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	productItem = productMap.find(productSnCode);
 	if (productItem == productMap.end()) {
 		log_error("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
+		for (int i = 0; i < unitCount; i++) {
+			struct httpMsg& msg = UnitParam[i].msg;
+			for (int j = 0; j < msg.pictures.size(); j++) {
+				delete[] msg.pictures[j].imageBuffer;
+			}
+		}
 		return 0;
 	}
 	head = productItem->second->testListMap->find(gpioPin)->second;
