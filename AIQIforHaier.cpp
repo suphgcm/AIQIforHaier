@@ -1223,10 +1223,6 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		return 0;
 	}
 
-	auto now1 = std::chrono::system_clock::now();
-	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long long timeMillisCount1 = timeMillis1.count();
-
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
 	// 得到产品序列号前9位
 	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
@@ -1308,12 +1304,6 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		return 0;
 	}
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
-
-	auto now2 = std::chrono::system_clock::now();
-	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-	long long timeMillisCount2 = timeMillis2.count();
-	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
-	AppendLog(StringToLPCWSTR(Log));
 
 	std::string productSnCode = productSn.substr(0, 9);
 
