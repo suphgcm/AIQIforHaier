@@ -795,7 +795,7 @@ void StartSelfTesting(/*HWND hWnd*/) {
 			case 3: {//码枪
 				CodeReader* deviceCodeReader = dynamic_cast<CodeReader*>(it->second);
 				if (deviceCodeReader->GetCodeReaderByIpAddress() && deviceCodeReader->Init()) {
-					deviceCodeReader->StartGrabbing();
+//					deviceCodeReader->StartGrabbing();
 					testflag++;
 				}
 				else {
@@ -1234,23 +1234,42 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	for (std::string codereader : vcodereaders) {
 		auto it = deviceMap.find(codereader);
 		if (it == deviceMap.end()) {
-			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
-			AppendLog(_T("光电开关故障\n"));
 			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
 			return 0;
 		}
 		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-		std::string logStr = "CodeReader " + CR->e_deviceCode + " called! " + std::to_string(CR->GetAcquisitionBurstFrameCount()) + " frames\n";
-		AppendLog(StringToLPCWSTR(logStr));
-		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
-		std::vector<std::string> results;
+
+		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " start grabbing!");
 		CR->Lock();
-		int crRet = CR->ReadCode(results);
+		CR->StartGrabbing();
 		CR->UnLock();
-		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
-		logStr = "CodeReader " + CR->e_deviceCode + " ret: " + std::to_string(crRet) + "\n";
-		AppendLog(StringToLPCWSTR(logStr));
-		if (!results.empty())
+	}
+
+	auto now = std::chrono::system_clock::now();
+	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long long timeMillisCount = timeMillis.count();
+
+	for (;;) {
+		for (std::string codereader : vcodereaders) {
+			auto it = deviceMap.find(codereader);
+			if (it == deviceMap.end()) {
+				log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
+				return 0;
+			}
+			CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
+
+			log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " start grabbing!");
+			std::vector<std::string> results;
+			CR->Lock();
+			CR->ReadCode(results);
+			CR->UnLock();
+			codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
+		}
+
+		auto now1 = std::chrono::system_clock::now();
+		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+		long long timeMillisCount1 = timeMillis1.count();
+		if (timeMillisCount1 - timeMillisCount > 300)
 		{
 			break;
 		}
@@ -1450,7 +1469,24 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 			deviceCR->SetValuesByJson(unit->parameter);
 		}
 		std::vector<std::string> codeRes;
-		int crRet = deviceCR->ReadCode(codeRes);
+		deviceCR->StartGrabbing();
+
+		auto now = std::chrono::system_clock::now();
+		auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long long timeMillisCount = timeMillis.count();
+		for (;;) {
+			std::vector<std::string> results;
+			deviceCR->ReadCode(results);
+			codeRes.insert(codeRes.end(), results.begin(), results.end());
+
+			auto now1 = std::chrono::system_clock::now();
+			auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+			long long timeMillisCount1 = timeMillis1.count();
+			if (timeMillisCount1 - timeMillisCount > 300)
+			{
+				break;
+			}
+		}
 		deviceCR->UnLock();
 
 		struct httpMsg msg;

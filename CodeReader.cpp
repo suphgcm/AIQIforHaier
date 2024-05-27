@@ -85,7 +85,7 @@ bool CodeReader::Init() {
 		printf("Open Device fail! nRet [0x%x]\n", nRet);
 		return false;
 	}
-
+/*
 	// 设置触发模式为 off todo: on?
 	nRet = MV_CODEREADER_SetEnumValue(m_handle, "TriggerMode", MV_CODEREADER_TRIGGER_MODE_ON);
 	if (nRet != MV_CODEREADER_OK) {
@@ -100,6 +100,16 @@ bool CodeReader::Init() {
 		printf("Set Software Mode fialed! nRet [0x%x]\n", nRet);
 		return false;
 	}
+*/
+
+// 设置触发模式为 off
+	nRet = MV_CODEREADER_SetEnumValue(m_handle, "TriggerMode", MV_CODEREADER_TRIGGER_MODE_OFF);
+	if (nRet != MV_CODEREADER_OK) {
+		printf("Set Trigger Mode fail! nRet [0x%x]\n", nRet);
+		return false;
+	}
+
+
 
 /*	// 设置关闭自动曝光
 	nRet = MV_CODEREADER_SetEnumValue(m_handle, "ExposureAuto", 0);
@@ -310,6 +320,11 @@ bool CodeReader::SetValuesByJson(const nlohmann::json& deviceParamConfigList) {
 	return SetValuesForUninited(exposureTime, acquisitionFrameRate, gain, acquisitionBurstFrameCount, lightSelectorEnable, currentPosition);
 }
 
+int RegisterImageCallBack()
+{
+
+}
+
 
 bool CodeReader::StartGrabbing() {
 	if (m_isGrabbing) {
@@ -346,6 +361,28 @@ bool CodeReader::StopGrabbing() {
 	return true;
 }
 
+int CodeReader::ReadCode(std::vector<std::string>& codes) const {
+	codes.clear();
+
+	MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
+	memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
+	unsigned char* pData = NULL;
+
+	int nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 0);
+	if (nRet != MV_CODEREADER_OK) {
+		return 0;
+	}
+
+	MV_CODEREADER_RESULT_BCR_EX2* stBcrResult = (MV_CODEREADER_RESULT_BCR_EX2*)stImageInfo.UnparsedBcrList.pstCodeListEx2;
+
+	for (unsigned int i = 0; i < stBcrResult->nCodeNum; i++) {
+		codes.push_back(stBcrResult->stBcrInfoEx2[i].chCode); // 参数为 const char * 类型字符
+	}
+
+	return 0;
+}
+
+/*
 int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 	codes.clear();
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
@@ -402,7 +439,7 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 
 	return 0;
 }
-
+*/
 int CodeReader::GetAcquisitionBurstFrameCount() 
 {
 	return m_acquisitionBurstFrameCount;
