@@ -1275,6 +1275,20 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		}
 	}
 
+	for (std::string codereader : vcodereaders) {
+		auto it = deviceMap.find(codereader);
+		if (it == deviceMap.end()) {
+			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
+			return 0;
+		}
+		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
+
+		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " stop grabbing!");
+		CR->Lock();
+		CR->StopGrabbing();
+		CR->UnLock();
+	}
+
 	if (codereaderresults.empty()) {
 		AppendLog(_T("扫码结果为空！\n"));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
@@ -1487,6 +1501,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 				break;
 			}
 		}
+		deviceCR->StopGrabbing();
 		deviceCR->UnLock();
 
 		struct httpMsg msg;
