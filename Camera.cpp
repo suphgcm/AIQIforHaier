@@ -363,6 +363,8 @@ void Camera::UnLock() {
 	m_mutex.unlock();
 }
 
+extern std::string projDir;
+
 bool Camera::GetImage(const std::string& path, void* args) {
 	if (!m_isGrabbing) {
 		return false;
@@ -386,6 +388,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	msg.productSnModel = unit->productSnModel;
 	msg.type = MSG_TYPE_PICTURE;
 	msg.sampleTime = milliseconds;
+
+	std::string PicturesPath = projDir.c_str();
+	PicturesPath.append("\\pictures\\" + std::to_string(milliseconds));
+	std::filesystem::create_directories(PicturesPath);
 
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
 		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
@@ -441,6 +447,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		std::string filePath = projDir.c_str();
 		filePath.append("\\" + pipelineCode + "\\" + unit->productSn + "\\" + unit->processesCode + "\\" + std::to_string(milliseconds) + ".jpeg");
 		std::filesystem::create_directories(filePath.substr(0, filePath.find_last_of('\\')));
+*/
+		std::string filePath = PicturesPath;
+		filePath.append(unit->productSn + "-" + unit->processesCode + "-" + e_deviceCode + "-" + std::to_string(milliseconds) + ".jpeg");
+	
 		FILE* fp = nullptr;
 		fopen_s(&fp, filePath.c_str(), "wb");
 		if (fp == nullptr) {
@@ -450,7 +460,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 			fwrite(to_jpeg.pImageBuffer, 1, to_jpeg.nImageLen, fp);
 			fclose(fp);
 		}
-*/
+
 		//  Õ∑≈
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
