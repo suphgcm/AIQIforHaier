@@ -66,6 +66,8 @@ struct counter {
 	long long count;
 } Counter;
 
+std::mutex map_mutex;
+
 std::vector<char> readPCMFile(const std::string& filename) {
     // 打开文件
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
@@ -291,7 +293,7 @@ DWORD GpioMessageProcThread(LPVOID lpParam)
 DWORD HttpServer(LPVOID lpParam)
 {
 	httplib::Server svr;
-
+/*
 	svr.Post("/alarm", [](const httplib::Request& req, httplib::Response& res) {
 		log_info("Current device test failed, alarm!");
         GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find("DC500001")->second);
@@ -301,8 +303,23 @@ DWORD HttpServer(LPVOID lpParam)
 
         res.set_content(req.body, "application/json");
     });
+*/
+	svr.Get("/notify", [](const httplib::Request& req, httplib::Response& res) {
+		// 检查参数中是否有"flag"
+		auto flag = req.get_param_value("flag");
+		if (flag == "true") {
+			res.set_content("Flag is true", "text/plain");
+			std::unique_lock<std::mutex> lock(map_mutex);
+			auto map = GetConfig();
+			if (map) {
+				productMap = map;
+			}
+		}
+	});
 
-	svr.listen("0.0.0.0", 9090);
+//	svr.listen("0.0.0.0", 9090);
+	svr.listen("0.0.0.0", 9999);
+
 	return 0;
 }
 
@@ -340,7 +357,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
 	StartSelfTesting();
-	GetConfig();
+	productMap = GetConfig();
 	f_QATESTING = true;
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
@@ -865,17 +882,17 @@ void PrintDevices() {
 }
 
 // 处理得到 productMap
-void GetConfig(/*HWND hWnd*/) {
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(/*HWND hWnd*/) {
 	HWND hWnd = FindWindow(NULL, szTitle);
 	HMENU hMenu = GetMenu(hWnd);
 	if (f_GETCFG) {
 		f_GETCFG = !f_GETCFG;
 		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return;
+		return nullptr;
 	}
 	f_GETCFG = !f_GETCFG;
 	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
-
+/*
 	// 调用 GetPipelineConfig.jar
 	std::string jarPath = projDir.c_str();
 	jarPath.append("\\GetPipelineConfig.jar");
@@ -900,7 +917,7 @@ void GetConfig(/*HWND hWnd*/) {
 	}
 
 	remove(flagpath.c_str());
-
+*/
 	// 读取 pipelineConfig.json
 	std::string configfile = projDir.c_str();
 	configfile.append("\\productconfig\\pipelineConfig.json");
@@ -908,9 +925,9 @@ void GetConfig(/*HWND hWnd*/) {
 	if (!jsonFile.is_open()) {
 		AppendLog(_T("Json File is not opened!\n"));
 		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return;
+		return nullptr;
 	}
-
+	auto productMaps = std::make_shared<std::unordered_map<std::string, std::shared_ptr<Product>>>();
 	// 解析 json
 	jsonFile.seekg(0);
 	nlohmann::json jsonObj;
@@ -932,7 +949,7 @@ void GetConfig(/*HWND hWnd*/) {
 				audioFileName = productConfig["audioFileName"];			
 			}
 
-			Product* tmpProduct = new Product(productSnCode, productName, productSnModel);
+			auto tmpProduct = std::make_shared<Product>(productSnCode, productName, productSnModel);
 
 			// processesMap and testListMap
 			auto processesMap = new std::unordered_map<int, std::vector<std::string>*>();
@@ -1136,7 +1153,7 @@ void GetConfig(/*HWND hWnd*/) {
 					}
 				}
 			}
-			productMap.insert(std::make_pair(productSnCode, tmpProduct));
+			productMaps->insert(std::make_pair(productSnCode, tmpProduct));
 		}
 		//for (const auto& i : productMap) {
 		//	std::string logStr = i.first + ": \n";
@@ -1153,8 +1170,10 @@ void GetConfig(/*HWND hWnd*/) {
 		AppendLog(StringToLPCWSTR(e.what()));
 		f_GETCFG = false;
 		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return;
+		return nullptr;
 	}
+	
+	return productMaps;
 }
 
 DWORD __stdcall InfraredRemoteCtlThread(LPVOID lpParam) {
@@ -1223,10 +1242,6 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		return 0;
 	}
 
-	auto now1 = std::chrono::system_clock::now();
-	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long long timeMillisCount1 = timeMillis1.count();
-
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
 	// 得到产品序列号前9位
 	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
@@ -1276,31 +1291,26 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	}
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
 
-	auto now2 = std::chrono::system_clock::now();
-	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-	long long timeMillisCount2 = timeMillis2.count();
-	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
-	AppendLog(StringToLPCWSTR(Log));
+	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
 
 	std::string productSnCode = productSn.substr(0, 9);
 
+	std::unique_lock<std::mutex> lock(map_mutex);
 	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
-	auto productItem = productMap.find(productSnCode);
-	if (productItem == productMap.end()) {
+	auto productItem = productMap->find(productSnCode);
+	if (productItem == productMap->end()) {
 		std::string logStr = "Product " + productSnCode + " does not exist!\n";
 		AppendLog(StringToLPCWSTR(logStr));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
 		return 0;
 	}
+	auto product = productItem->second;
+	lock.unlock();
 
-	std::string logStr = "Product " + productSn + " scanned!\n";
-	AppendLog(StringToLPCWSTR(logStr));
-	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
-
-	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
-	auto now3 = std::chrono::system_clock::now();
-	auto duration_in_milliseconds3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
-	long startTime = duration_in_milliseconds3.count();
+	ProcessUnit* head = product->testListMap->find(gpioPin)->second;
+	auto now0 = std::chrono::system_clock::now();
+	auto duration_in_milliseconds0 = std::chrono::duration_cast<std::chrono::milliseconds>(now0.time_since_epoch());
+	long startTime = duration_in_milliseconds0.count();
 
 	auto it = map2bTest.find(gpioPin);
 	if (it == map2bTest.end()) {
