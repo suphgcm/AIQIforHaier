@@ -40,8 +40,8 @@ HANDLE hMainWork[8]; // 当前线程句柄
 std::list<HANDLE> allMainWorkHandles; // 所有线程句柄
 int remoteCtrlPin;
 
-std::string baseUrl = "http://192.168.0.189:10001";
-std::string pipelineCode = "CX202309141454000002"; // 一台工控机只跑一个 pipeline
+std::string baseUrl = "http://10.142.193.10:10001";
+std::string pipelineCode = "CX202404151414000001"; // 一台工控机只跑一个 pipeline
 std::string pipelineName;
 
 HINSTANCE hInst;                                // 当前实例
@@ -128,7 +128,7 @@ void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int 
 }
 
 void HttpPost(struct httpMsg& msg) {
-	httplib::Client cli("192.168.0.189", HTTP_POST_PORT);
+	httplib::Client cli("10.142.193.10", HTTP_POST_PORT);
 
 	std::string path;
 	httplib::Headers headers;
@@ -1254,7 +1254,6 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 			}
 			CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
 
-			log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " start grabbing!");
 			std::vector<std::string> results;
 			CR->Lock();
 			CR->ReadCode(results);
@@ -1262,10 +1261,10 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 			codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
 		}
 
-		auto now1 = std::chrono::system_clock::now();
-		auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-		long long timeMillisCount1 = timeMillis1.count();
-		if (timeMillisCount1 - timeMillisCount > 300)
+		now = std::chrono::system_clock::now();
+		timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long long timeMillisCount1 = timeMillis.count();
+		if (timeMillisCount1 - timeMillisCount > 200)
 		{
 			break;
 		}
@@ -1290,14 +1289,19 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
 		return 0;
 	}
+	
+	std::string coderesult = "";
 	std::string productSn = "";
 	for (size_t i = 0; i < codereaderresults.size(); i++) {
 		std::string tmpr = codereaderresults[i];
+		coderesult = coderesult + tmpr + "-";
 		// 取最长
 		if (tmpr.size() > productSn.size()) {
 			productSn = tmpr;
 		}
 	}
+	log_info("Gpiopin " + std::to_string(gpioPin) + ": Code result=" + coderesult);
+
 	if (productSn.length() < 13) {
 		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan  product sn code failed, product sn length less than 13!");
@@ -1321,9 +1325,9 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
 
 	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
-	auto now3 = std::chrono::system_clock::now();
-	auto duration_in_milliseconds3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
-	long startTime = duration_in_milliseconds3.count();
+	now = std::chrono::system_clock::now();
+	timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long startTime = timeMillis.count();
 
 	auto it = map2bTest.find(gpioPin);
 	if (it == map2bTest.end()) {
@@ -1339,17 +1343,17 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 
 	product2btest* myp2btest = it->second;
 	std::vector<HANDLE> handles;
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long start = duration_in_milliseconds.count();
+	now = std::chrono::system_clock::now();
+	timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long start = timeMillis.count();
 
 	ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
 	int count = 0;
 	int gpiopin = myp2btest->processUnitListHead->pin;
 	while (tmpFind != myp2btest->processUnitListHead) {
-		auto now = std::chrono::system_clock::now();
-		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-		long runla = duration_in_milliseconds.count();
+		now = std::chrono::system_clock::now();
+		timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long runla = timeMillis.count();
 
 		// 加句柄队列
 		if ((runla - start) >= tmpFind->laterncy) {

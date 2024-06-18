@@ -320,12 +320,6 @@ bool CodeReader::SetValuesByJson(const nlohmann::json& deviceParamConfigList) {
 	return SetValuesForUninited(exposureTime, acquisitionFrameRate, gain, acquisitionBurstFrameCount, lightSelectorEnable, currentPosition);
 }
 
-int RegisterImageCallBack()
-{
-
-}
-
-
 bool CodeReader::StartGrabbing() {
 	if (m_isGrabbing) {
 		return true;
