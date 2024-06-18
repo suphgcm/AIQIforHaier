@@ -304,7 +304,8 @@ DWORD HttpServer(LPVOID lpParam)
         res.set_content(req.body, "application/json");
     });
 */
-	svr.Get("/notify", [](const httplib::Request& req, httplib::Response& res) {
+	svr.Post("/notify", [](const httplib::Request& req, httplib::Response& res) {
+		log_info("Pipeline configuration modified, reload!");
 		// 检查参数中是否有"flag"
 		auto flag = req.get_param_value("flag");
 		if (flag == "true") {

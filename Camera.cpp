@@ -449,7 +449,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		std::filesystem::create_directories(filePath.substr(0, filePath.find_last_of('\\')));
 */
 		std::string filePath = PicturesPath;
-		filePath.append(unit->productSn + "-" + unit->processesCode + "-" + e_deviceCode + "-" + std::to_string(milliseconds) + ".jpeg");
+		filePath.append("\\" + unit->productSn + "-" + unit->processesCode + "-" + e_deviceCode + "-" + std::to_string(milliseconds) + ".jpeg");
 	
 		FILE* fp = nullptr;
 		fopen_s(&fp, filePath.c_str(), "wb");
