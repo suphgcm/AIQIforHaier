@@ -40,13 +40,9 @@ HANDLE hMainWork[8]; // 当前线程句柄
 std::list<HANDLE> allMainWorkHandles; // 所有线程句柄
 int remoteCtrlPin;
 
-<<<<<<< HEAD
-std::string baseUrl = "http://192.168.0.189:10001";
+std::string baseUrl = "http://192.168.0.189:9003/api/client";
 std::string pipelineCode = "CX202309141454000002"; // 一台工控机只跑一个 pipeline
-=======
-std::string baseUrl = "http://10.142.193.10:9003/api/client";
-std::string pipelineCode = "CX202404151414000001"; // 一台工控机只跑一个 pipeline
->>>>>>> 4d6fb3c... 防误触发&流量切网关
+
 std::string pipelineName;
 
 HINSTANCE hInst;                                // 当前实例
