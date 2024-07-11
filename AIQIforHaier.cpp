@@ -32,7 +32,7 @@
 #pragma comment(lib, "ws2_32.lib")
 
 #define MAX_LOADSTRING 100
-#define HTTP_POST_PORT 10001
+#define HTTP_POST_PORT 9003
 
 std::mutex mtx[8];
 bool isPinTriggered[8]; // GPIO 针脚是否触发状态
@@ -40,8 +40,13 @@ HANDLE hMainWork[8]; // 当前线程句柄
 std::list<HANDLE> allMainWorkHandles; // 所有线程句柄
 int remoteCtrlPin;
 
+<<<<<<< HEAD
 std::string baseUrl = "http://192.168.0.189:10001";
 std::string pipelineCode = "CX202309141454000002"; // 一台工控机只跑一个 pipeline
+=======
+std::string baseUrl = "http://10.142.193.10:9003/api/client";
+std::string pipelineCode = "CX202404151414000001"; // 一台工控机只跑一个 pipeline
+>>>>>>> 4d6fb3c... 防误触发&流量切网关
 std::string pipelineName;
 
 HINSTANCE hInst;                                // 当前实例
@@ -136,7 +141,7 @@ void HttpPost(struct httpMsg& msg) {
 	std::string contentType;
 
 	if (msg.type == MSG_TYPE_STOP) {
-		path = "/inspection/stopFlag";
+		path = "/api/client/inspection/stopFlag";
 		//headers = { {"Content-Type", "application/json"} };
 		contentType = "application/json";
 		nlohmann::json jsonObject;
@@ -145,7 +150,7 @@ void HttpPost(struct httpMsg& msg) {
 		body = jsonObject.dump();
 	}
 	else {
-		path = "/inspection/upload";
+		path = "/api/client/inspection/upload";
 		//headers = { {"Content-Type", "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW"} };
 		contentType = "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
 		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
@@ -263,6 +268,7 @@ void GpioMsgProc(struct gpioMsg& msg)
 	switch (message)
 	{
 	case WM_GPIO_ON:
+		log_info("Gpio " + std::to_string(gpioPin) + " triggered!");
 		TriggerOn(gpioPin);
 		break;
 	case WM_GPIO_OFF:

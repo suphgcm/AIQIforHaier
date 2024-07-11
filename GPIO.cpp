@@ -166,16 +166,16 @@ bool GPIO::SetGpioParam(std::string deviceTypeId, std::string deviceTypeName, st
 */
 DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 //	MessageBox(NULL, L"GPIO线程启动!", L"GPIO", MB_OK);
-	long requiredDur = 10;
+	long requiredDur = 600;
 
-	/*	auto now = std::chrono::system_clock::now();
-		auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-		long long timeMillisCount = timeMillis.count();
-		long long lastChange[8];
-		for (int i = 0; i < 8; ++i) {
-			lastChange[i] = timeMillisCount;
-		}
-	*/
+	auto now = std::chrono::system_clock::now();
+	auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+	long long timeMillisCount = timeMillis.count();
+	long long lastChange[8];
+	for (int i = 0; i < 8; ++i) {
+		lastChange[i] = timeMillisCount;
+	}
+	
 	long pinLevel[8] = { 1, 1, 1, 1, 1, 0, 0, 0 };
 
 	GPIO* gpio = static_cast<GPIO*>(lpParam);
@@ -188,43 +188,33 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 
 			if (curState == 0 && pinLevel[i] == 1) {
 				// 高变低
-/*				auto now = std::chrono::system_clock::now();
+				auto now = std::chrono::system_clock::now();
 				auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 				long long timeMillisCount = timeMillis.count();
 				if (timeMillisCount - lastChange[i] < requiredDur) {
 					continue;
 				}
-*/
+				log_info("Gpio state change from high to low!");
 // 触发
 				if (gpio->msgmap.find(i) != gpio->msgmap.end()) {
-					std::string Log1 = "Gpio " + std::to_string(i) + " triggered!";
-					log_info(Log1);
-					auto now = std::chrono::system_clock::now();
-					auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-					long long timeMillisCount = timeMillis.count();
 					//SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG + 1, i, i);
 					struct gpioMsg msg;
 					msg.gpioPin = i;
 					msg.message = gpio->GPIOBASEMSG + 1;
 					GpioMessageQueue.push(msg);
-					auto now1 = std::chrono::system_clock::now();
-					auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-					long long timeMillisCount1 = timeMillis1.count();
-					std::string Log = "SendMessage time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
-					AppendLog(StringToLPCWSTR(Log));
 				}
 				pinLevel[i] = 0;
-				//				lastChange[i] = timeMillisCount;
+				lastChange[i] = timeMillisCount;
 			}
 			if (curState == 1 && pinLevel[i] == 0) {
 				// 低变高
-/*				auto now = std::chrono::system_clock::now();
+				auto now = std::chrono::system_clock::now();
 				auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
 				long long timeMillisCount = timeMillis.count();
 				if (timeMillisCount - lastChange[i] < requiredDur) {
 					continue;
 				}
-*/
+				log_info("Gpio state change from low to high!");
 // 触发结束
 				if (gpio->msgmap.find(i) != gpio->msgmap.end()) {
 					//SendMessage(gpio->msgmap[i], gpio->GPIOBASEMSG - 1, i, i);
@@ -234,7 +224,7 @@ DWORD __stdcall GPIO::MainWorkThread(LPVOID lpParam) {
 					GpioMessageQueue.push(msg);
 				}
 				pinLevel[i] = 1;
-				//				lastChange[i] = timeMillisCount;
+				lastChange[i] = timeMillisCount;
 			}
 		}
 		//Sleep(requiredDur);
