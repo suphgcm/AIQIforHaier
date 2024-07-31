@@ -201,14 +201,19 @@ void HttpPost(struct httpMsg& msg) {
 
 	log_info("Start post http msg, msgId: " + std::to_string(msg.msgId));
 	auto res = cli.Post(path.c_str(), headers, body, contentType);
-	log_info("End post http msg, msgId: " + std::to_string(msg.msgId));
-
-	if (res && res->status == 200) {
-		log_info("Http msg post successed! msgId: " + std::to_string(msg.msgId));
+	if (res) {
+		if (res->status == 200) {
+			log_info("Http msg post successed! msgId: " + std::to_string(msg.msgId));
+		}
+		else {
+			log_error("Http msg post failed! resp code:" + std::to_string(res->status));
+		}
 	}
 	else {
-		log_error("Http msg post failed! msgId:" + std::to_string(msg.msgId));
+		auto err = res.error();
+		log_error("Http msg post failed! http err:" + httplib::to_string(err));
 	}
+	log_info("End post http msg, msgId: " + std::to_string(msg.msgId));
 
 	return;
 }
