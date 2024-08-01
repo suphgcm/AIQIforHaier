@@ -375,19 +375,6 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
 	ProcessUnit* unit = (ProcessUnit*)args;
-	struct httpMsg msg;
-	Counter.mutex.lock();
-	Counter.count++;
-	msg.msgId = Counter.count;
-	Counter.mutex.unlock();
-	msg.pipelineCode = pipelineCode;
-	msg.processesCode = unit->processesCode;
-	msg.processesTemplateCode = unit->processesTemplateCode;
-	msg.productSn = unit->productSn;
-	msg.productSnCode = unit->productSnCode;
-	msg.productSnModel = unit->productSnModel;
-	msg.type = MSG_TYPE_PICTURE;
-	msg.sampleTime = milliseconds;
 
 	std::string PicturesPath = projDir.c_str();
 	PicturesPath.append("\\pictures\\" + std::to_string(milliseconds));
@@ -438,18 +425,13 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		duration = now.time_since_epoch();
 		milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-		struct picture Picture;		
-		Picture.imageBuffer = to_jpeg.pImageBuffer;
-		Picture.imageLen = to_jpeg.nImageLen;
-		Picture.sampleTime = milliseconds;
-		msg.pictures.emplace_back(Picture);
 /*
 		std::string filePath = projDir.c_str();
 		filePath.append("\\" + pipelineCode + "\\" + unit->productSn + "\\" + unit->processesCode + "\\" + std::to_string(milliseconds) + ".jpeg");
 		std::filesystem::create_directories(filePath.substr(0, filePath.find_last_of('\\')));
 */
 		std::string filePath = PicturesPath;
-		filePath.append(unit->productSn + "-" + unit->processesCode + "-" + e_deviceCode + "-" + std::to_string(milliseconds) + ".jpeg");
+		filePath.append("\\" + unit->productSn + "-" + unit->processesCode + "-" + e_deviceCode + "-" + std::to_string(milliseconds) + ".jpeg");
 	
 		FILE* fp = nullptr;
 		fopen_s(&fp, filePath.c_str(), "wb");
@@ -462,6 +444,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		}
 
 		//  Õ∑≈
+		delete[] to_jpeg.pImageBuffer;
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
 			printf("Free Image Buffer fail! nRet [0x%x]\n", nRet);
@@ -472,9 +455,6 @@ bool Camera::GetImage(const std::string& path, void* args) {
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(m_cameraInterval));
 	}
-
-	Singleton::instance().push(msg);
-	log_info("push msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
 
 	return true;
 }

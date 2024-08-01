@@ -27,7 +27,7 @@ bool DeviceConfigued = false;
 
 void StartSelfTesting(/*HWND hWnd*/);
 void PrintDevices();
-std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(/*HWND hWnd*/);
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(nlohmann::json &jsonObj/*HWND hWnd*/);
 
 //void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 //void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);

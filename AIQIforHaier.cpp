@@ -60,6 +60,7 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 DWORD __stdcall CheckAndClearLog(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
+nlohmann::json ReadPipelineConfig();
 
 struct counter {
 	std::mutex mutex;
@@ -86,173 +87,6 @@ std::vector<char> readPCMFile(const std::string& filename) {
         // 处理错误
         throw std::runtime_error("Error reading file");
     }
-}
-
-void AddTextPart(std::vector<char> &body, std::string &text, std::string &boundary, std::string name)
-{
-	std::string textPartStart = "Content-Disposition: form-data; name=\""+ name + \
-		"\"\r\nContent-Type:text/plain\r\n\r\n";
-	body.insert(body.end(), textPartStart.begin(), textPartStart.end());
-
-	std::string textData = text;
-	body.insert(body.end(), textData.begin(), textData.end());
-
-	std::string textPartEnd = "\r\n--" + boundary + "\r\n";
-	body.insert(body.end(), textPartEnd.begin(), textPartEnd.end());
-
-	return;
-}
-
-void AddBinaryPart(std::vector<char>& body, unsigned char* buffer, unsigned int lengh, std::string& boundary, std::string fileName, MSG_TYPE_E binaryType)
-{
-	std::string contentType;
-	if (binaryType == MSG_TYPE_PICTURE) {
-		contentType = "image/jpeg";
-	}
-	else {
-		contentType = "audio/basic";
-	}
-
-	// Add picture
-	std::string partStart = "Content-Disposition: form-data; name=\"files\"; filename=\"" + \
-		fileName + "\"\r\nContent-Type: " +  contentType + "\r\n\r\n";
-	body.insert(body.end(), partStart.begin(), partStart.end());
-
-	for (int i = 0; i < lengh; i++)
-	{
-		body.push_back(buffer[i]);
-	}
-
-	std::string partEnd = "\r\n--" + boundary + "\r\n";
-	body.insert(body.end(), partEnd.begin(), partEnd.end());
-
-	return;
-}
-
-void HttpPost(struct httpMsg& msg) {
-	httplib::Client cli("192.168.0.189", HTTP_POST_PORT);
-
-	std::string path;
-	httplib::Headers headers;
-	std::string body;
-	std::string contentType;
-
-	if (msg.type == MSG_TYPE_STOP) {
-		path = "/inspection/stopFlag";
-		//headers = { {"Content-Type", "application/json"} };
-		contentType = "application/json";
-		nlohmann::json jsonObject;
-		jsonObject["pipelineCode"] = msg.pipelineCode;
-		jsonObject["productSn"] = msg.productSn;
-		body = jsonObject.dump();
-	}
-	else {
-		path = "/inspection/upload";
-		//headers = { {"Content-Type", "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW"} };
-		contentType = "multipart/form-data;boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW";
-		std::string boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
-		std::vector<char> body1;
-
-		//add first boundary
-		std::string partStart = "--" + boundary + "\r\n";
-		body1.insert(body1.end(), partStart.begin(), partStart.end());
-
-		if (msg.type == MSG_TYPE_PICTURE) {
-			for (auto it = msg.pictures.begin(); it != msg.pictures.end(); ++it)
-			{
-				std::string imageName = std::to_string(it->sampleTime) + ".jpeg";
-				// Add picture
-				AddBinaryPart(body1, it->imageBuffer, it->imageLen, boundary, imageName, MSG_TYPE_PICTURE);
-			}
-		}
-		else if (msg.type == MSG_TYPE_TEXT) {
-			// Add TEXT
-			AddTextPart(body1, msg.text, boundary, "content");
-		}
-		else if (msg.type == MSG_TYPE_SOUND) {
-			std::string soundPath = projDir.c_str();
-			soundPath.append("\\temp\\");
-			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
-			auto sound = readPCMFile(soundPath + soundName);
-			// Add sound
-			AddBinaryPart(body1, (unsigned char*)sound.data(), sound.size(), boundary, soundName, MSG_TYPE_PICTURE);
-		}
-		else {
-			log_error("Invalid msg type, msgType: " + std::to_string(msg.type) + ", msgId: " + std::to_string(msg.msgId));
-		}
-
-		std::string sampleTime = "123456789";
-		// Add text part
-		AddTextPart(body1, msg.pipelineCode, boundary, "pipelineCode");
-		AddTextPart(body1, msg.processesCode, boundary, "processesCode");
-		AddTextPart(body1, msg.processesTemplateCode, boundary, "processesTemplateCode");
-		AddTextPart(body1, msg.productSn, boundary, "productSn");
-		AddTextPart(body1, msg.productSnCode, boundary, "productSnCode");
-		AddTextPart(body1, msg.productSnModel, boundary, "productSnModel");
-		AddTextPart(body1, sampleTime, boundary, "sampleTime");
-
-		body1.pop_back();
-		body1.pop_back();
-		std::string End = "--\r\n";
-		body1.insert(body1.end(), End.begin(), End.end());
-
-		std::string temp(body1.begin(), body1.end());
-		body = temp;
-	}
-
-	log_info("Start post http msg, msgId: " + std::to_string(msg.msgId));
-	auto res = cli.Post(path.c_str(), headers, body, contentType);
-	log_info("End post http msg, msgId: " + std::to_string(msg.msgId));
-
-	if (res && res->status == 200) {
-		log_info("Http msg post successed! msgId: " + std::to_string(msg.msgId));
-	}
-	else {
-		log_error("Http msg post failed! msgId:" + std::to_string(msg.msgId));
-	}
-
-	return;
-}
-
-DWORD HttpPostThread(LPVOID lpParam)
-{
-	struct httpMsg msg;
-
-	while (true)
-	{
-		Singleton::instance().wait(msg);
-		if (msg.type == MSG_TYPE_STOP)
-		{
-			log_info("Process http stop msg, msgId: " + std::to_string(msg.msgId) + \
-				", processSn: " + msg.productSn);
-		}
-		else {
-			log_info("Process http msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn + \
-				", processesTemplateCode : " + msg.processesTemplateCode);
-		}
-
-		HttpPost(msg);
-
-		if (msg.type == MSG_TYPE_STOP)
-		{
-			log_info("End process http stop msg, msgId: " + std::to_string(msg.msgId) + \
-				", processSn: " + msg.productSn);
-		}
-		else {
-			log_info("End process http msg, msgId: " + std::to_string(msg.msgId) + \
-				", processSn: " + msg.productSn + ", processesTemplateCode : " + msg.processesTemplateCode);
-		}
-
-		if (msg.type == MSG_TYPE_PICTURE)
-		{
-			for (auto it = msg.pictures.begin(); it != msg.pictures.end(); ++it)
-			{
-				delete[] it->imageBuffer;
-			}
-		}
-	}
-
-	return 0;
 }
 
 class MessageQueue<struct gpioMsg> GpioMessageQueue;
@@ -304,17 +138,17 @@ DWORD HttpServer(LPVOID lpParam)
         res.set_content(req.body, "application/json");
     });
 */
-	svr.Get("/notify", [](const httplib::Request& req, httplib::Response& res) {
+	svr.Post("/notify", [](const httplib::Request& req, httplib::Response& res) {
+		log_info("Pipeline configuration modified, reload!");
 		// 检查参数中是否有"flag"
-		auto flag = req.get_param_value("flag");
-		if (flag == "true") {
-			res.set_content("Flag is true", "text/plain");
-			std::unique_lock<std::mutex> lock(map_mutex);
-			auto map = GetConfig();
-			if (map) {
-				productMap = map;
-			}
-		}
+		nlohmann::json jsonobj = nlohmann::json::parse(req.body);
+
+		std::string pipeconfig = jsonobj["data"];
+		nlohmann::json jsonobj1 = nlohmann::json::parse(pipeconfig);
+		std::unique_lock<std::mutex> lock(map_mutex);
+		productMap = GetConfig(jsonobj1);
+
+		res.set_content(req.body, "application/json");
 	});
 
 //	svr.listen("0.0.0.0", 9090);
@@ -352,12 +186,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		return FALSE;
 	}
 */
-	HANDLE hHttpPost = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
-	HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
 	StartSelfTesting();
-	productMap = GetConfig();
+	nlohmann::json jsonObj = ReadPipelineConfig();
+	productMap = GetConfig(jsonObj);
 	f_QATESTING = true;
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
@@ -562,6 +395,7 @@ DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
 
 	return 0;
 }
+
 
 // 各个按钮对应的函数
 void StartSelfTesting(/*HWND hWnd*/) {
@@ -881,59 +715,35 @@ void PrintDevices() {
 	}
 }
 
-// 处理得到 productMap
-std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(/*HWND hWnd*/) {
-	HWND hWnd = FindWindow(NULL, szTitle);
-	HMENU hMenu = GetMenu(hWnd);
-	if (f_GETCFG) {
-		f_GETCFG = !f_GETCFG;
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return nullptr;
-	}
-	f_GETCFG = !f_GETCFG;
-	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
-/*
-	// 调用 GetPipelineConfig.jar
-	std::string jarPath = projDir.c_str();
-	jarPath.append("\\GetPipelineConfig.jar");
-	std::string cfgDir = projDir.c_str();
-	cfgDir.append("\\productconfig\\");
-	std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
-    std::system(command.c_str());
-
-	// 检查 flag
-	std::string flagpath = projDir.c_str();
-	flagpath.append("\\productconfig\\flag");
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-	while (INVALID_FILE_ATTRIBUTES == GetFileAttributes(StringToWstring(flagpath).c_str())) {
-		now = std::chrono::system_clock::now();
-		auto duration_now_in_seconds_now = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
-		if ((duration_now_in_seconds_now.count() - duration_in_seconds.count()) > 20) {
-			AppendLog(_T("等待配置文件超时，超时时间为20秒\n"));
-			return;
-		}
-		Sleep(1000);
-	}
-
-	remove(flagpath.c_str());
-*/
+nlohmann::json ReadPipelineConfig() {
 	// 读取 pipelineConfig.json
 	std::string configfile = projDir.c_str();
 	configfile.append("\\productconfig\\pipelineConfig.json");
 	std::ifstream jsonFile(configfile);
 	if (!jsonFile.is_open()) {
-		AppendLog(_T("Json File is not opened!\n"));
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
+		log_error("pipeline configuration file open failed!");
 		return nullptr;
 	}
-	auto productMaps = std::make_shared<std::unordered_map<std::string, std::shared_ptr<Product>>>();
+
 	// 解析 json
 	jsonFile.seekg(0);
 	nlohmann::json jsonObj;
 	try {
 		jsonFile >> jsonObj;
-		AppendLog(_T("Open Json File success!\n"));
+		jsonFile.close();
+	}
+	catch (const nlohmann::json::parse_error& e) {
+		log_error("pipeline configuration parse failed!");
+		return nullptr;
+	}
+
+	return jsonObj;
+}
+
+// 处理得到 productMap
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(nlohmann::json& jsonObj/*HWND hWnd*/) {
+	auto productMaps = std::make_shared<std::unordered_map<std::string, std::shared_ptr<Product>>>();
+	try {
 		// 获取pipeline基本信息
 		pipelineCode = jsonObj["pipelineCode"];
 		pipelineName = jsonObj["pipelineName"];
@@ -946,7 +756,7 @@ std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetCo
 			std::string audioFileName = "xiaoyouxiaoyou";
 			if (productConfig.contains("audioFileName"))
 			{
-				audioFileName = productConfig["audioFileName"];			
+				audioFileName = productConfig["audioFileName"];
 			}
 
 			auto tmpProduct = std::make_shared<Product>(productSnCode, productName, productSnModel);
@@ -973,6 +783,15 @@ std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetCo
 
 			auto processesConfigList = productConfig["processesConfigList"];
 			for (auto processes : processesConfigList) {
+				bool processesDebug = false;
+				if (processes.contains("processesDebug"))
+				{
+					processesDebug = processes["processesDebug"];
+				}
+				if (false == processesDebug)
+				{
+					continue;
+				}
 				std::string processesCode = processes["processesCode"];
 				std::string processesTemplateCode = processes["processesTemplateCode"];
 				std::string processesTemplateName = processes["processesTemplateName"];
@@ -1155,24 +974,10 @@ std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetCo
 			}
 			productMaps->insert(std::make_pair(productSnCode, tmpProduct));
 		}
-		//for (const auto& i : productMap) {
-		//	std::string logStr = i.first + ": \n";
-		//	auto tlm = i.second->testListMap;
-		//	for (auto i = tlm->find(3)->second->nextunit; i != tlm->find(3)->second; i = i->nextunit) {
-		//		logStr += i->deviceCode + ", ";
-		//	}
-		//	logStr += "\n";
-		//	AppendLog(StringToLPCWSTR(logStr));
-		//}
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
 	}
 	catch (const nlohmann::json::parse_error& e) {
-		AppendLog(StringToLPCWSTR(e.what()));
-		f_GETCFG = false;
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return nullptr;
+		log_error("pipeline configuration parse failed!");
 	}
-	
 	return productMaps;
 }
 
@@ -1293,7 +1098,8 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
 
-	std::string productSnCode = productSn.substr(0, 9);
+	//std::string productSnCode = productSn.substr(0, 9);
+    std::string productSnCode = "AAAAAAAAA";
 
 	std::unique_lock<std::mutex> lock(map_mutex);
 	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
@@ -1442,10 +1248,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		Camera* devicecm = dynamic_cast<Camera*>(unit->eq);
 		log_info("Camera " + devicecm->e_deviceCode + " be called!");
 		devicecm->Lock();
-		if (sameProductSn == FALSE)
-		{
-			devicecm->SetValuesByJson(unit->parameter);
-		}
+	    devicecm->SetValuesByJson(unit->parameter);
 		devicecm->GetImage(path, unit);
 		devicecm->UnLock();
 		break;
