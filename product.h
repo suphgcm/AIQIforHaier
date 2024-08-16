@@ -53,7 +53,27 @@ public:
 	Product() {}
 	Product(std::string s_productSnCode, std::string s_productName, std::string s_productSnModel) 
 		: productSnCode(s_productSnCode), productName(s_productName), productSnModel(s_productSnModel) {}
-	~Product() {}
+	~Product() {
+		for (const auto& pair : *processCodeMap) {
+			delete(pair.second);
+		}
+		delete(processCodeMap);
+		processCodeMap = nullptr;
+
+		for (const auto& pair : *testListMap) {
+			auto head = pair.second;
+			auto curUnit = head->nextunit;
+			auto nextUnit = curUnit->nextunit;
+			while (curUnit != head) {
+				delete(curUnit);
+				curUnit = nextUnit;
+				nextUnit = curUnit->nextunit;
+			}
+			delete(head);
+		}
+		delete(testListMap);
+		testListMap = nullptr;
+	}
 
 	void SetDeviceMap(std::unordered_map<std::string, equnit*>* deviceMap) {
 		this->deviceMap = deviceMap;

@@ -17,7 +17,7 @@ std::string projDir = ".";
 std::unordered_map<int, std::vector<std::string>> triggerMaps;
 //std::unordered_map<int, std::string> triggerMap;       // GPIO pin - …®√Ë«πdeviceCode
 std::unordered_map<std::string, equnit*> deviceMap;    // deviceCode - …Ë±∏
-std::unordered_map<std::string, Product*> productMap;  // productSnCode - Product
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> productMap;  // productSnCode - Product
 std::unordered_map<int, product2btest*> map2bTest;     // GPIO pin - product2btest
 
 bool f_SELFTESTING = false;
@@ -27,7 +27,9 @@ bool DeviceConfigued = false;
 
 void StartSelfTesting(/*HWND hWnd*/);
 void PrintDevices();
-void GetConfig(/*HWND hWnd*/);
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(nlohmann::json& jsonObj);
+nlohmann::json ReadPipelineConfig();
+bool GetPipeLineConfigFile();
 
 //void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 //void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);

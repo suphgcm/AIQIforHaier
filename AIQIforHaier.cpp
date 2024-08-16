@@ -67,6 +67,8 @@ struct counter {
 	long long count;
 } Counter;
 
+std::mutex map_mutex;
+
 std::vector<char> readPCMFile(const std::string& filename) {
     // 打开文件
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
@@ -309,6 +311,20 @@ DWORD HttpServer(LPVOID lpParam)
         res.set_content(req.body, "application/json");
     });
 
+	svr.Post("/notify", [](const httplib::Request& req, httplib::Response& res) {
+		log_info("Pipeline configuration modified, reload!");
+		// 检查参数中是否有"flag"
+		nlohmann::json jsonobj = nlohmann::json::parse(req.body);
+
+		std::string pipeconfig = jsonobj["data"];
+		nlohmann::json jsonobj1 = nlohmann::json::parse(pipeconfig);
+		auto map = GetConfig(jsonobj1);
+		std::unique_lock<std::mutex> lock(map_mutex);
+		productMap = map;
+		lock.unlock();
+		res.set_content(req.body, "application/json");
+	});
+
 	svr.listen("0.0.0.0", 9090);
 	return 0;
 }
@@ -347,7 +363,24 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
 	StartSelfTesting();
-	GetConfig();
+	for (int i = 0; i < 3; i++) {
+		bool result = GetPipeLineConfigFile();
+		if (true == result) {
+			break;
+		}
+	}
+	
+	nlohmann::json jsonObj = ReadPipelineConfig();
+	if (nullptr == jsonObj) {
+		log_error("Invalid pipeline configuration!");
+		return -1;
+	}
+
+	auto map = GetConfig(jsonObj);
+	std::unique_lock<std::mutex> lock(map_mutex);
+	productMap = map;
+	lock.unlock();
+
 	f_QATESTING = true;
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_AIQIFORHAIER));
@@ -872,24 +905,14 @@ void PrintDevices() {
 }
 
 // 处理得到 productMap
-void GetConfig(/*HWND hWnd*/) {
-	HWND hWnd = FindWindow(NULL, szTitle);
-	HMENU hMenu = GetMenu(hWnd);
-	if (f_GETCFG) {
-		f_GETCFG = !f_GETCFG;
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return;
-	}
-	f_GETCFG = !f_GETCFG;
-	CheckMenuItem(hMenu, ID_GETCFG, MF_CHECKED);
-
+bool GetPipeLineConfigFile() {
 	// 调用 GetPipelineConfig.jar
 	std::string jarPath = projDir.c_str();
 	jarPath.append("\\GetPipelineConfig.jar");
 	std::string cfgDir = projDir.c_str();
 	cfgDir.append("\\productconfig\\");
 	std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
-    std::system(command.c_str());
+	std::system(command.c_str());
 
 	// 检查 flag
 	std::string flagpath = projDir.c_str();
@@ -900,22 +923,24 @@ void GetConfig(/*HWND hWnd*/) {
 		now = std::chrono::system_clock::now();
 		auto duration_now_in_seconds_now = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
 		if ((duration_now_in_seconds_now.count() - duration_in_seconds.count()) > 20) {
-			AppendLog(_T("等待配置文件超时，超时时间为20秒\n"));
-			return;
+			log_info("get pipeline configuration failed!");
+			return false;
 		}
 		Sleep(1000);
 	}
 
 	remove(flagpath.c_str());
+	return true;
+}
 
+nlohmann::json ReadPipelineConfig() {
 	// 读取 pipelineConfig.json
 	std::string configfile = projDir.c_str();
 	configfile.append("\\productconfig\\pipelineConfig.json");
 	std::ifstream jsonFile(configfile);
 	if (!jsonFile.is_open()) {
-		AppendLog(_T("Json File is not opened!\n"));
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return;
+		log_error("pipeline configuration file open failed!");
+		return nullptr;
 	}
 
 	// 解析 json
@@ -923,7 +948,19 @@ void GetConfig(/*HWND hWnd*/) {
 	nlohmann::json jsonObj;
 	try {
 		jsonFile >> jsonObj;
-		AppendLog(_T("Open Json File success!\n"));
+		jsonFile.close();
+	}
+	catch (const nlohmann::json::parse_error& e) {
+		log_error("pipeline configuration parse failed!");
+		return nullptr;
+	}
+
+	return jsonObj;
+}
+
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(nlohmann::json& jsonObj) {
+	auto productMaps = std::make_shared<std::unordered_map<std::string, std::shared_ptr<Product>>>();
+    try {
 		// 获取pipeline基本信息
 		pipelineCode = jsonObj["pipelineCode"];
 		pipelineName = jsonObj["pipelineName"];
@@ -939,7 +976,7 @@ void GetConfig(/*HWND hWnd*/) {
 				audioFileName = productConfig["audioFileName"];			
 			}
 
-			Product* tmpProduct = new Product(productSnCode, productName, productSnModel);
+			auto tmpProduct = std::make_shared<Product>(productSnCode, productName, productSnModel);
 
 			// processesMap and testListMap
 			auto processesMap = new std::unordered_map<int, std::vector<std::string>*>();
@@ -1143,25 +1180,15 @@ void GetConfig(/*HWND hWnd*/) {
 					}
 				}
 			}
-			productMap.insert(std::make_pair(productSnCode, tmpProduct));
+			productMaps->insert(std::make_pair(productSnCode, tmpProduct));
 		}
-		//for (const auto& i : productMap) {
-		//	std::string logStr = i.first + ": \n";
-		//	auto tlm = i.second->testListMap;
-		//	for (auto i = tlm->find(3)->second->nextunit; i != tlm->find(3)->second; i = i->nextunit) {
-		//		logStr += i->deviceCode + ", ";
-		//	}
-		//	logStr += "\n";
-		//	AppendLog(StringToLPCWSTR(logStr));
-		//}
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
 	}
 	catch (const nlohmann::json::parse_error& e) {
-		AppendLog(StringToLPCWSTR(e.what()));
 		f_GETCFG = false;
-		CheckMenuItem(hMenu, ID_GETCFG, MF_UNCHECKED);
-		return;
+		log_error("pipeline configuration parse failed!");
 	}
+
+	return productMaps;
 }
 
 DWORD __stdcall InfraredRemoteCtlThread(LPVOID lpParam) {
@@ -1222,17 +1249,12 @@ struct UnitWorkPara
 DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	CloseHandle(GetCurrentThread());
 	int gpioPin = (int)lpParam;
-	std::string triggerLog = "*lpParam = " + std::to_string(gpioPin) + "\n";
 
 	if (gpioPin == 4)
 	{
 		CreateThread(NULL, 0, InfraredRemoteCtlThread, NULL, 0, NULL);
 		return 0;
 	}
-
-	auto now1 = std::chrono::system_clock::now();
-	auto timeMillis1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long long timeMillisCount1 = timeMillis1.count();
 
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
 	// 得到产品序列号前9位
@@ -1241,22 +1263,16 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	for (std::string codereader : vcodereaders) {
 		auto it = deviceMap.find(codereader);
 		if (it == deviceMap.end()) {
-			AppendLog(_T("光电开关绑定的扫码器未初始化，请检查配置！\n"));
-			AppendLog(_T("光电开关故障\n"));
 			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
 			return 0;
 		}
 		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-		std::string logStr = "CodeReader " + CR->e_deviceCode + " called! " + std::to_string(CR->GetAcquisitionBurstFrameCount()) + " frames\n";
-		AppendLog(StringToLPCWSTR(logStr));
 		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
 		std::vector<std::string> results;
 		CR->Lock();
 		int crRet = CR->ReadCode(results);
 		CR->UnLock();
 		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
-		logStr = "CodeReader " + CR->e_deviceCode + " ret: " + std::to_string(crRet) + "\n";
-		AppendLog(StringToLPCWSTR(logStr));
 		if (!results.empty())
 		{
 			break;
@@ -1264,7 +1280,6 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	}
 
 	if (codereaderresults.empty()) {
-		AppendLog(_T("扫码结果为空！\n"));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
 		return 0;
 	}
@@ -1277,41 +1292,34 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		}
 	}
 	if (productSn.length() < 13) {
-		AppendLog(_T("扫码错误，扫码结果不足13位！\n"));
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan  product sn code failed, product sn length less than 13!");
 		return 0;
 	}
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
 
-	auto now2 = std::chrono::system_clock::now();
-	auto timeMillis2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-	long long timeMillisCount2 = timeMillis2.count();
-	std::string Log = "Scancode time = " + std::to_string(timeMillisCount2 - timeMillisCount1) + "\n";
-	AppendLog(StringToLPCWSTR(Log));
-
 	std::string productSnCode = productSn.substr(0, 9);
 
+	std::unique_lock<std::mutex> lock(map_mutex);
 	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
-	auto productItem = productMap.find(productSnCode);
-	if (productItem == productMap.end()) {
-		std::string logStr = "Product " + productSnCode + " does not exist!\n";
-		AppendLog(StringToLPCWSTR(logStr));
+	auto productItem = productMap->find(productSnCode);
+	if (productItem == productMap->end()) {
 		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
 		return 0;
 	}
+	auto product = productItem->second;
+	lock.unlock();
 
-	std::string logStr = "Product " + productSn + " scanned!\n";
-	AppendLog(StringToLPCWSTR(logStr));
 	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
 
-	ProcessUnit* head = productItem->second->testListMap->find(gpioPin)->second;
-	auto now3 = std::chrono::system_clock::now();
-	auto duration_in_milliseconds3 = std::chrono::duration_cast<std::chrono::milliseconds>(now3.time_since_epoch());
-	long startTime = duration_in_milliseconds3.count();
+	ProcessUnit* head =product->testListMap->find(gpioPin)->second;
+
+	auto now0 = std::chrono::system_clock::now();
+	auto duration_in_milliseconds0 = std::chrono::duration_cast<std::chrono::milliseconds>(now0.time_since_epoch());
+	long startTime = duration_in_milliseconds0.count();
 
 	auto it = map2bTest.find(gpioPin);
 	if (it == map2bTest.end()) {
-		AppendLog(L"map2bTest init error!");
+		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Map2bTest init error!");
 		return 0;
 	}
     std::string lastProductSnCode = it->second->productSnCode;
@@ -1323,17 +1331,17 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 
 	product2btest* myp2btest = it->second;
 	std::vector<HANDLE> handles;
-	auto now = std::chrono::system_clock::now();
-	auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	long start = duration_in_milliseconds.count();
+	auto now1 = std::chrono::system_clock::now();
+	auto duration_in_milliseconds1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+	long start = duration_in_milliseconds1.count();
 
 	ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
 	int count = 0;
 	int gpiopin = myp2btest->processUnitListHead->pin;
 	while (tmpFind != myp2btest->processUnitListHead) {
-		auto now = std::chrono::system_clock::now();
-		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-		long runla = duration_in_milliseconds.count();
+		auto now2 = std::chrono::system_clock::now();
+		auto duration_in_milliseconds2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+		long runla = duration_in_milliseconds2.count();
 
 		// 加句柄队列
 		if ((runla - start) >= tmpFind->laterncy) {
