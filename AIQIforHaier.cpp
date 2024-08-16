@@ -316,14 +316,21 @@ DWORD HttpServer(LPVOID lpParam)
 		// 检查参数中是否有"flag"
 		nlohmann::json jsonobj = nlohmann::json::parse(req.body);
 
-		std::string pipeconfig = jsonobj["data"];
-		nlohmann::json jsonobj1 = nlohmann::json::parse(pipeconfig);
+		//		std::string pipeconfig = jsonobj["data"];
+		//		nlohmann::json jsonobj1 = nlohmann::json::parse(pipeconfig);
+		nlohmann::json& jsonobj1 = jsonobj["data"];
 		auto map = GetConfig(jsonobj1);
 		std::unique_lock<std::mutex> lock(map_mutex);
 		productMap = map;
 		lock.unlock();
+		std::string configPath = projDir.c_str();
+		configPath.append("\\productconfig\\pipelineConfig.json");
+		std::ofstream config_file(configPath, std::ofstream::trunc);
+		std::string pipeconfig = jsonobj1.dump(4);
+		config_file << pipeconfig;
+		config_file.close();
 		res.set_content(req.body, "application/json");
-	});
+		});
 
 	svr.listen("0.0.0.0", 9090);
 	return 0;
