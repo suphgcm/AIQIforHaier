@@ -348,18 +348,32 @@ bool CodeReader::StopGrabbing() {
 
 int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 	codes.clear();
+	unsigned char* pData = NULL;
+	MV_CODEREADER_RESULT_BCR_EX2* stBcrResult = NULL;
+	MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
+	int nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 50);
+	if (nRet == MV_CODEREADER_OK) {
+
+		stBcrResult = (MV_CODEREADER_RESULT_BCR_EX2*)stImageInfo.UnparsedBcrList.pstCodeListEx2;
+
+		for (unsigned int i = 0; i < stBcrResult->nCodeNum; i++) {
+			std::string log = "Prefetch scancode: ";
+			log.append(stBcrResult->stBcrInfoEx2[i].chCode);
+			log_info(log);
+		}
+	}
+
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
 		log_info("Scancoder code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
-		MV_CODEREADER_IMAGE_OUT_INFO_EX2 stImageInfo = { 0 };
-	    memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
-	    unsigned char* pData = NULL;
+		memset(&stImageInfo, 0, sizeof(MV_CODEREADER_IMAGE_OUT_INFO_EX2));
+		pData = NULL;
 
-	    auto now = std::chrono::system_clock::now();
-	    auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-	    long long timeMillisCount = timeMillis.count();
+		auto now = std::chrono::system_clock::now();
+		auto timeMillis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long long timeMillisCount = timeMillis.count();
 
 		// 软触发
-		int nRet = MV_CODEREADER_SetCommandValue(m_handle, "TriggerSoftware");
+		nRet = MV_CODEREADER_SetCommandValue(m_handle, "TriggerSoftware");
 		if (MV_CODEREADER_OK != nRet)
 		{
 			log_error("Scancoder code: " + e_deviceCode + ": Set Software Once failed! nRet=" + std::to_string(nRet));
@@ -367,7 +381,7 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 			continue;
 		}
 
-		nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 1000);
+		nRet = MV_CODEREADER_GetOneFrameTimeoutEx2(m_handle, &pData, &stImageInfo, 2000);
 		if (nRet != MV_CODEREADER_OK) {
 			log_error("Scancoder code: " + e_deviceCode + ": Get one frame failed! nRet=" + std::to_string(nRet));
 			printf("No data[0x%x]\n", nRet);
@@ -378,7 +392,7 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 		long long timeMillisCount1 = timeMillis1.count();
 		std::string Log = "Scan code ret = " + std::to_string(nRet) + "Scan Code time = " + std::to_string(timeMillisCount1 - timeMillisCount) + "\n";
 		AppendLog(StringToLPCWSTR(Log));
-		MV_CODEREADER_RESULT_BCR_EX2* stBcrResult = (MV_CODEREADER_RESULT_BCR_EX2*)stImageInfo.UnparsedBcrList.pstCodeListEx2;
+		stBcrResult = (MV_CODEREADER_RESULT_BCR_EX2*)stImageInfo.UnparsedBcrList.pstCodeListEx2;
 
 		printf("Get One Frame: nChannelID[%d] Width[%d], Height[%d], nFrameNum[%d], nTriggerIndex[%d]\n",
 			stImageInfo.nChannelID, stImageInfo.nWidth, stImageInfo.nHeight, stImageInfo.nFrameNum, stImageInfo.nTriggerIndex);
@@ -387,9 +401,9 @@ int CodeReader::ReadCode(std::vector<std::string>& codes) const {
 
 		for (unsigned int i = 0; i < stBcrResult->nCodeNum; i++) {
 			printf("Get CodeInfo: CodeNum[%d] CodeEx[%s]\n", i, stBcrResult->stBcrInfoEx2[i].chCode);
-//			if (std::strlen(stBcrResult->stBcrInfoEx2[i].chCode) > 9) {
-				codes.push_back(stBcrResult->stBcrInfoEx2[i].chCode); // 参数为 const char * 类型字符串
-//			}
+			//			if (std::strlen(stBcrResult->stBcrInfoEx2[i].chCode) > 9) {
+			codes.push_back(stBcrResult->stBcrInfoEx2[i].chCode); // 参数为 const char * 类型字符串
+			//			}
 		}
 
 		log_info("Scancoder code: " + e_deviceCode + ": Frame " + std::to_string(i) + " end!");
