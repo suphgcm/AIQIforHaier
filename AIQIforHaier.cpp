@@ -69,6 +69,12 @@ struct counter {
 
 std::mutex map_mutex;
 
+struct codeContainer {
+	std::mutex mutex;
+	long time;
+	std::string snCode;
+} Container;
+
 std::vector<char> readPCMFile(const std::string& filename) {
     // 打开文件
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
@@ -1262,142 +1268,158 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	CloseHandle(GetCurrentThread());
 	int gpioPin = (int)lpParam;
 
-	if (gpioPin == 4)
-	{
-		CreateThread(NULL, 0, InfraredRemoteCtlThread, NULL, 0, NULL);
-		return 0;
-	}
-
-	log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
 	// 得到产品序列号前9位
-	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
 	std::vector<std::string> codereaderresults;
-	for (std::string codereader : vcodereaders) {
-		auto it = deviceMap.find(codereader);
-		if (it == deviceMap.end()) {
-			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
+	std::vector<std::string> vcodereaders = triggerMaps[gpioPin];
+	if (!vcodereaders.empty()) {
+		log_info("Gpiopin " + std::to_string(gpioPin) + ": Start scan product sn code!");
+		for (std::string codereader : vcodereaders) {
+			auto it = deviceMap.find(codereader);
+			if (it == deviceMap.end()) {
+				log_warn("Gpiopin " + std::to_string(gpioPin) + ": Light switch doesn't bind scancoder, please check configure!");
+				return 0;
+			}
+			CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
+			log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
+			std::vector<std::string> results;
+			CR->Lock();
+			int crRet = CR->ReadCode(results);
+			CR->UnLock();
+			codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
+			if (!results.empty())
+			{
+				break;
+			}
+		}
+
+		if (codereaderresults.empty()) {
+			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
 			return 0;
 		}
-		CodeReader* CR = dynamic_cast<CodeReader*>(it->second);
-		log_info("Gpiopin " + std::to_string(gpioPin) + ": CodeReader " + CR->e_deviceCode + " called!");
-		std::vector<std::string> results;
-		CR->Lock();
-		int crRet = CR->ReadCode(results);
-		CR->UnLock();
-		codereaderresults.insert(codereaderresults.end(), results.begin(), results.end());
-		if (!results.empty())
+		std::string productSn = "";
+		for (size_t i = 0; i < codereaderresults.size(); i++) {
+			std::string tmpr = codereaderresults[i];
+			// 取最长
+			if (tmpr.size() > productSn.size()) {
+				productSn = tmpr;
+			}
+		}
+		if (productSn.length() < 13) {
+			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan  product sn code failed, product sn length less than 13!");
+			return 0;
+		}
+		log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
+		log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
+		auto now = std::chrono::system_clock::now();
+		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long nowTime = duration_in_milliseconds.count();
+
+		Container.mutex.lock();
+		Container.snCode = productSn;
+		Container.time = nowTime;
+		Container.mutex.unlock();
+	} else {
+		auto now = std::chrono::system_clock::now();
+		auto duration_in_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
+		long nowTime = duration_in_milliseconds.count();
+
+		Container.mutex.lock();
+		long codeTime = Container.time;
+		std::string productSn = Container.snCode;
+		Container.mutex.unlock();
+		if (nowTime < codeTime) {
+			log_error("Gpiopin " + std::to_string(gpioPin) + ": prefetch code is invalid!");
+			return 0;
+		}
+		std::string productSnCode = productSn.substr(0, 9);
+		std::unique_lock<std::mutex> lock(map_mutex);
+		// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
+		auto productItem = productMap->find(productSnCode);
+		if (productItem == productMap->end()) {
+			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
+			return 0;
+		}
+		auto product = productItem->second;
+		lock.unlock();
+
+
+		ProcessUnit* head = product->testListMap->find(gpioPin)->second;
+
+		auto now0 = std::chrono::system_clock::now();
+		auto duration_in_milliseconds0 = std::chrono::duration_cast<std::chrono::milliseconds>(now0.time_since_epoch());
+		long startTime = duration_in_milliseconds0.count();
+
+		auto it = map2bTest.find(gpioPin);
+		if (it == map2bTest.end()) {
+			log_warn("Gpiopin " + std::to_string(gpioPin) + ": Map2bTest init error!");
+			return 0;
+		}
+		std::string lastProductSnCode = it->second->productSnCode;
+		it->second->pinNumber = gpioPin;
+		it->second->productSn = productSn;
+		it->second->productSnCode = productSnCode;
+		it->second->processUnitListHead = head;
+		it->second->shotTimestamp = startTime;
+
+		product2btest* myp2btest = it->second;
+		std::vector<HANDLE> handles;
+		auto now1 = std::chrono::system_clock::now();
+		auto duration_in_milliseconds1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
+		long start = duration_in_milliseconds1.count();
+
+		ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
+		int count = 0;
+		int gpiopin = myp2btest->processUnitListHead->pin;
+		while (tmpFind != myp2btest->processUnitListHead) {
+			auto now2 = std::chrono::system_clock::now();
+			auto duration_in_milliseconds2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
+			long runla = duration_in_milliseconds2.count();
+
+			// 加句柄队列
+			if ((runla - start) >= tmpFind->laterncy) {
+				tmpFind->productSn = myp2btest->productSn;
+				struct UnitWorkPara* param = new(struct UnitWorkPara);
+				if (lastProductSnCode == productSnCode)
+				{
+					param->sameProductSnCode = TRUE;
+				}
+				else
+				{
+					param->sameProductSnCode = FALSE;
+				}
+				param->procUnit = tmpFind;
+				HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, param, 0, NULL);
+				handles.push_back(hUnitWork);
+				tmpFind = tmpFind->nextunit;
+			}
+			else {
+				Sleep(10);
+			}
+		}
+
+		for (auto& handle : handles) {
+			WaitForSingleObject(handle, INFINITE);
+			CloseHandle(handle);
+		}
+
+		/*最后一个gpio引脚触发事件处理结束后，发送检测结束标志*/
+		if (gpioPin == 1)
 		{
-			break;
+			Sleep(1500);
+			struct httpMsg msg;
+			Counter.mutex.lock();
+			Counter.count++;
+			msg.msgId = Counter.count;
+			Counter.mutex.unlock();
+			msg.pipelineCode = pipelineCode;
+			msg.productSn = productSn;
+			msg.type = MSG_TYPE_STOP;
+
+			Singleton::instance().push(msg);
+			log_info("push stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
 		}
 	}
 
-	if (codereaderresults.empty()) {
-		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan product sn code result is null!");
-		return 0;
-	}
-	std::string productSn = "";
-	for (size_t i = 0; i < codereaderresults.size(); i++) {
-		std::string tmpr = codereaderresults[i];
-		// 取最长
-		if (tmpr.size() > productSn.size()) {
-			productSn = tmpr;
-		}
-	}
-	if (productSn.length() < 13) {
-		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Scan  product sn code failed, product sn length less than 13!");
-		return 0;
-	}
-	log_info("Gpiopin " + std::to_string(gpioPin) + ": End scan product sn code!");
-
-	std::string productSnCode = productSn.substr(0, 9);
-
-	std::unique_lock<std::mutex> lock(map_mutex);
-	// 跳过 pipeline 配置里不存在的商品总成号 productSnCode
-	auto productItem = productMap->find(productSnCode);
-	if (productItem == productMap->end()) {
-		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSnCode + " does not exist!");
-		return 0;
-	}
-	auto product = productItem->second;
-	lock.unlock();
-
-	log_info("Gpiopin " + std::to_string(gpioPin) + ": Product sn " + productSn + " Scaned!");
-
-	ProcessUnit* head =product->testListMap->find(gpioPin)->second;
-
-	auto now0 = std::chrono::system_clock::now();
-	auto duration_in_milliseconds0 = std::chrono::duration_cast<std::chrono::milliseconds>(now0.time_since_epoch());
-	long startTime = duration_in_milliseconds0.count();
-
-	auto it = map2bTest.find(gpioPin);
-	if (it == map2bTest.end()) {
-		log_warn("Gpiopin " + std::to_string(gpioPin) + ": Map2bTest init error!");
-		return 0;
-	}
-    std::string lastProductSnCode = it->second->productSnCode;
-	it->second->pinNumber = gpioPin;
-	it->second->productSn = productSn;
-	it->second->productSnCode = productSnCode;
-	it->second->processUnitListHead = head;
-	it->second->shotTimestamp = startTime;
-
-	product2btest* myp2btest = it->second;
-	std::vector<HANDLE> handles;
-	auto now1 = std::chrono::system_clock::now();
-	auto duration_in_milliseconds1 = std::chrono::duration_cast<std::chrono::milliseconds>(now1.time_since_epoch());
-	long start = duration_in_milliseconds1.count();
-
-	ProcessUnit* tmpFind = myp2btest->processUnitListHead->nextunit;
-	int count = 0;
-	int gpiopin = myp2btest->processUnitListHead->pin;
-	while (tmpFind != myp2btest->processUnitListHead) {
-		auto now2 = std::chrono::system_clock::now();
-		auto duration_in_milliseconds2 = std::chrono::duration_cast<std::chrono::milliseconds>(now2.time_since_epoch());
-		long runla = duration_in_milliseconds2.count();
-
-		// 加句柄队列
-		if ((runla - start) >= tmpFind->laterncy) {
-			tmpFind->productSn = myp2btest->productSn;
-			struct UnitWorkPara* param = new(struct UnitWorkPara);
-			if (lastProductSnCode == productSnCode)
-			{
-				param->sameProductSnCode = TRUE;
-			}
-			else
-			{
-				param->sameProductSnCode = FALSE;
-			}
-			param->procUnit = tmpFind;
-			HANDLE hUnitWork = CreateThread(NULL, 0, UnitWorkThread, param, 0, NULL);
-			handles.push_back(hUnitWork);
-			tmpFind = tmpFind->nextunit;
-		}
-		else {
-			Sleep(10);
-		}
-	}
-
-	for (auto& handle : handles) {
-		WaitForSingleObject(handle, INFINITE);
-		CloseHandle(handle);
-	}
-
-	/*最后一个gpio引脚触发事件处理结束后，发送检测结束标志*/
-	if (gpioPin == 1)
-	{
-		Sleep(1500);
-		struct httpMsg msg;
-		Counter.mutex.lock();
-		Counter.count++;
-		msg.msgId = Counter.count;
-		Counter.mutex.unlock();
-		msg.pipelineCode = pipelineCode;
-		msg.productSn = productSn;
-		msg.type = MSG_TYPE_STOP;
-
-		Singleton::instance().push(msg);
-		log_info("push stop msg, msgId: " + std::to_string(msg.msgId) + ", processSn: " + msg.productSn);
-	}
 	return 0;
 }
 
