@@ -174,6 +174,11 @@ void HttpPost(struct httpMsg& msg) {
 			std::string soundPath = projDir.c_str();
 			soundPath.append("\\temp\\");
 			std::string soundName = std::to_string(msg.sampleTime) + ".pcm";
+			if (!std::filesystem::exists(soundPath + soundName))
+			{
+				log_error("Target pcm file does not exist! fileName: " + soundName);
+				return;
+			}
 			auto sound = readPCMFile(soundPath + soundName);
 			// Add sound
 			AddBinaryPart(body1, (unsigned char*)sound.data(), sound.size(), boundary, soundName, MSG_TYPE_PICTURE);
