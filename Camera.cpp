@@ -381,7 +381,7 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	msg.pipelineCode = pipelineCode;
 	msg.processesCode = unit->processesCode;
 	msg.processesTemplateCode = unit->processesTemplateCode;
-	msg.productSn = unit->productSn;
+	msg.productSn = unit->productSn + pipelineCode;
 	msg.productSnCode = unit->productSnCode;
 	msg.productSnModel = unit->productSnModel;
 	msg.type = MSG_TYPE_PICTURE;

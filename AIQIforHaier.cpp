@@ -42,7 +42,6 @@ int remoteCtrlPin;
 
 std::string baseUrl = "http://192.168.0.189:9003/api/client";
 std::string pipelineCode = "CX202309141454000002"; // 一台工控机只跑一个 pipeline
-
 std::string pipelineName;
 
 HINSTANCE hInst;                                // 当前实例
@@ -981,6 +980,7 @@ std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetCo
 			// product
 			std::string productName = productConfig["productName"];
 			std::string productSnCode = productConfig["productSnCode"]; //前9个字符，码枪扫出的
+			productSnCode = productSnCode.substr(0, 9);
 			std::string productSnModel = productConfig["productSnModel"];
 			std::string audioFileName = "xiaoyouxiaoyou";
 			if (productConfig.contains("audioFileName"))
@@ -1392,7 +1392,7 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 		msg.msgId = Counter.count;
 		Counter.mutex.unlock();
 		msg.pipelineCode = pipelineCode;
-		msg.productSn = productSn;
+		msg.productSn = productSn + pipelineCode;
 		msg.type = MSG_TYPE_STOP;
 
 		Singleton::instance().push(msg);
@@ -1488,7 +1488,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		msg.pipelineCode = pipelineCode;
 		msg.processesCode = unit->processesCode;
 		msg.processesTemplateCode = unit->processesTemplateCode;
-		msg.productSn = unit->productSn;
+		msg.productSn = unit->productSn + pipelineCode;
 		msg.productSnCode = unit->productSnCode;
 		msg.productSnModel = unit->productSnModel;
 		msg.type = MSG_TYPE_TEXT;
@@ -1604,7 +1604,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 			msg.pipelineCode = pipelineCode;
 			msg.processesCode = unit->processesCode;
 			msg.processesTemplateCode = unit->processesTemplateCode;
-			msg.productSn = unit->productSn;
+			msg.productSn = unit->productSn + pipelineCode;
 			msg.productSnCode = unit->productSnCode;
 			msg.productSnModel = unit->productSnModel;
 			msg.type = MSG_TYPE_SOUND;
