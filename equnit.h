@@ -69,4 +69,10 @@ public:
 	equnit() {}
 	equnit(std::string deviceTypeId, std::string deviceTypeName, std::string deviceTypeCode, std::string deviceCode, std::string deviceName) :e_deviceTypeId(deviceTypeId), e_deviceTypeName(deviceTypeName), e_deviceTypeCode(deviceTypeCode), e_deviceCode(deviceCode), e_deviceName(deviceName) {};
 	virtual  ~equnit() {};
+    std::string getDeviceTypeCode() {
+	    return e_deviceTypeCode;
+	}
+	std::string getDeviceCode() {
+		return e_deviceCode;
+	}
 };

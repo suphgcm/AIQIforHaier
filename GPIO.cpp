@@ -13,10 +13,11 @@ extern class MessageQueue<struct gpioMsg> GpioMessageQueue;
 
 bool GPIO::Init() {
 	m_handle = new(Uhi);
-	if (m_handle == nullptr) {
-		std::cerr << "Init lib failed: " << std::endl;
+	if (m_handle == nullptr || false == ((Uhi *)m_handle)->GetWinIoInitializeStates()) {
+		log_error("Gpio module initiallize failed!");
 		return false;
 	}
+
 	return true;
 }
 
@@ -153,7 +154,6 @@ bool GPIO::SetGpioParam(std::string deviceTypeId, std::string deviceTypeName, st
 	e_deviceTypeName = deviceTypeName;
 	hwnd = wInstnd;
 	m_bios_id = bios_id;
-
 	m_number = p_number;
 	GPIOBASEMSG = BASEMSG;
 	return true;

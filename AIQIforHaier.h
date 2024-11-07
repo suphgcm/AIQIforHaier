@@ -25,11 +25,11 @@ bool f_QATESTING = false;
 bool f_GETCFG = false;
 bool DeviceConfigued = false;
 
-void StartSelfTesting(/*HWND hWnd*/);
-void PrintDevices();
-std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(nlohmann::json& jsonObj);
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> ParsePipelineConfig(nlohmann::json& jsonObj);
 nlohmann::json ReadPipelineConfig();
-bool GetPipeLineConfigFile();
+bool FetchPipeLineConfigFile();
+bool ParseBasicConfig();
+bool StartDeviceSelfTesting();
 
 //void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 //void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -37,7 +37,6 @@ bool GetPipeLineConfigFile();
 void TriggerOn(UINT gpioPin);
 void TriggerOff(UINT gpioPin);
 
-void SetPostFlag(ProcessUnit* processUnitListHead);
 
 // before c++17
 //std::wstring StringToWstring(const std::string& s) {

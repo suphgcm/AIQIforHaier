@@ -28,12 +28,12 @@ MV_CC_DEVICE_INFO* Camera::GetCameraByIpAddress() {
 
 	int nRet = MV_CC_EnumDevices(MV_GIGE_DEVICE, &stDeviceList);
 	if (nRet != MV_OK) {
-		std::cerr << "Enum cameras failed! nRet [0x" << std::hex << nRet << std::dec << "]" << std::endl;
-		return NULL;
+		log_error("Enum camera devices failed! ret=" + std::to_string(nRet));
+		return nullptr;
 	}
 	if (stDeviceList.nDeviceNum <= 0) {
-		std::cerr << "No cameras found!" << std::endl;
-		return NULL;
+		log_error("Enum process doesn't found any camera devices!");
+		return nullptr;
 	}
 
 	for (unsigned int i = 0; i < stDeviceList.nDeviceNum; i++) {
@@ -55,8 +55,8 @@ MV_CC_DEVICE_INFO* Camera::GetCameraByIpAddress() {
 			int nIp3 = ((pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x0000ff00) >> 8);
 			int nIp4 = (pstMVDevInfo->SpecialInfo.stGigEInfo.nCurrentIp & 0x000000ff);
 			std::string ipAddress = std::to_string(nIp1) + '.' + std::to_string(nIp2) + '.' + std::to_string(nIp3) + '.' + std::to_string(nIp4);
-			std::cout << "CurrentIp: " << ipAddress << std::endl;
 			if (ipAddress._Equal(IPADDR)) {
+				log_info("Camera " + e_deviceCode + ": " + IPADDR + " had been found successfully!");
 				m_mvDevInfo = pstMVDevInfo;
 				m_isGot = true;
 				return pstMVDevInfo;
@@ -71,7 +71,9 @@ MV_CC_DEVICE_INFO* Camera::GetCameraByIpAddress() {
 			std::cerr << "pstMVDevInfo->nTLayerType does not support." << std::endl;
 		}
 	}
-	return NULL;
+
+	log_error("Camera " + e_deviceCode + ": " + IPADDR + " doesn't been found!");
+	return nullptr;
 }
 
 bool Camera::Init() {
@@ -86,14 +88,14 @@ bool Camera::Init() {
 	// 创建句柄
 	int nRet = MV_CC_CreateHandle(&m_handle, m_mvDevInfo);
 	if (nRet != MV_OK) {
-		printf("Create Handle fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Create handle failed! ret=" + std::to_string(nRet));
 		return false;
 	}
 
 	// 连接设备 todo: 考虑中间出现 false 时的析构
 	nRet = MV_CC_OpenDevice(m_handle);
 	if (nRet != MV_OK) {
-		printf("Open Device fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Open device failed! ret=" + std::to_string(nRet));
 		return false;
 	}
 
@@ -103,67 +105,66 @@ bool Camera::Init() {
 		if (nPacketSize > 0) {
 			nRet = MV_CC_SetIntValue(m_handle, "GevSCPSPacketSize", nPacketSize);
 			if (nRet != MV_OK) {
-				printf("Warning: Set Packet Size fail nRet [0x%x]!", nRet);
+				log_error("Camera " + e_deviceCode + ": Set packet size failed! ret=" + std::to_string(nRet));
 			}
 		}
 		else {
-			printf("Warning: Get Packet Size fail nRet [0x%x]!", nPacketSize);
+			log_error("Camera " + e_deviceCode + ": Get packet size failed! ret=" + std::to_string(nRet));
 		}
 	}
 
 	// 增加数据包传输延迟，防止丢包
 	nRet = MV_CC_SetIntValueEx(m_handle, "GevSCPD", 8000);
 	if (nRet != MV_OK) {
-		printf("Set GevSCPD fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set GevSCPD failed! ret=" + std::to_string(nRet));
 	}
 
 	// 设置关闭自动曝光
 	nRet = MV_CC_SetEnumValue(m_handle, "ExposureAuto", 0);
 	if (nRet != MV_OK) {
-		printf("Set ExposureAuto fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set ExposureAuto failed! ret=" + std::to_string(nRet));
 	}
 
 	// 设置曝光时间，设置曝光时间前请先关闭自动曝光，否则会设置失败
 	nRet = MV_CC_SetFloatValue(m_handle, "ExposureTime", m_exposureTime);
 	if (nRet != MV_OK) {
-		printf("Set ExposureTime fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set ExposureTime failed! ret=" + std::to_string(nRet));
 	}
 
 	// 设置采集帧率
 	nRet = MV_CC_SetFloatValue(m_handle, "AcquisitionFrameRate", m_acquisitionFrameRate);
 	if (nRet != MV_OK) {
-		printf("Set AcquisitionFrameRate fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set AcquisitionFrameRate failed! ret=" + std::to_string(nRet));
 	}
 
 	// 让采集帧率和设置的帧率一样，如果不改为true，则会以最大带宽速率进行传输
 	nRet = MV_CC_SetBoolValue(m_handle, "AcquisitionFrameRateEnable", true);
 	if (nRet != MV_OK) {
-		printf("Set AcquisitionFrameRateEnable fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set AcquisitionFrameRateEnable failed! ret=" + std::to_string(nRet));
 	}
 
 	// 设置自动曝光增益
 	nRet = MV_CC_SetEnumValue(m_handle, "GainAuto", 0);
 	if (nRet != MV_OK) {
-		printf("Set GainAuto fail [%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set auto gain failed! ret=" + std::to_string(nRet));
 	}
 
 	// 设置曝光增益，请先关闭自动曝光增益否则失败
 	nRet = MV_CC_SetFloatValue(m_handle, "Gain", m_gain);
 	if (nRet != MV_OK) {
-		printf("Set Gain fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set gain failed! ret=" + std::to_string(nRet));
 	}
 
 	// 设置连续采集
 	nRet = MV_CC_SetEnumValue(m_handle, "AcquisitionMode", 2);
 	if (nRet != MV_OK) {
-		printf("AcquisitionMode fail! nRet [0x%x]\n", nRet);
-		exit(1);
+		log_error("Camera " + e_deviceCode + ": Set AcquisitionMode failed! ret=" + std::to_string(nRet));
 	}
 
 	// 触发模式关闭
 	nRet = MV_CC_SetEnumValue(m_handle, "TriggerMode", 0);
 	if (nRet != MV_OK) {
-		printf("TriggerMode fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set trigger mode failed! ret=" + std::to_string(nRet));
 	}
 
 	//// 设置触发源为软件触发
@@ -180,7 +181,7 @@ bool Camera::Init() {
 	// 设置像素格式 BayerRG8
 	nRet = MV_CC_SetEnumValue(m_handle, "PixelFormat", PixelType_Gvsp_BayerRG8);
 	if (nRet != MV_OK) {
-		printf("Set PixelFormat fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set PixelFormat failed! ret=" + std::to_string(nRet));
 	}
 
 	m_isInited = true;
@@ -234,7 +235,7 @@ bool Camera::SetValuesForUninited(
 bool Camera::SetValuesForInited(
 	float exposureTime, float acquisitionFrameRate, float gain, int acquisitionBurstFrameCount, int compressionQuality, int cameraInterval
 ) {
-	log_info("Camera code: " + e_deviceCode + ": Start set camera parameter!");
+	log_info("Camera " + e_deviceCode + ": Start set camera parameter!");
 	if (!m_isInited) {
 		return false;
 	}
@@ -242,24 +243,23 @@ bool Camera::SetValuesForInited(
 	// 设置曝光时间
 	int nRet = MV_CC_SetFloatValue(m_handle, "ExposureTime", exposureTime);
 	if (nRet != MV_OK) {
-		log_error("Camera code: " + e_deviceCode + ": Set exposure time failed! Ret=" + std::to_string(nRet));
+		log_error("Camera " + e_deviceCode + ": Set exposure time failed! Ret=" + std::to_string(nRet));
 		return false;
 	}
 	m_exposureTime = exposureTime;
-	log_info("Camera code: " + e_deviceCode + ": Set exposure time success!");
+	log_info("Camera " + e_deviceCode + ": Set exposure time success!");
 	// 设置采集帧率
 	nRet = MV_CC_SetFloatValue(m_handle, "AcquisitionFrameRate", acquisitionFrameRate);
 	if (nRet != MV_OK) {
-		log_error("Camera code: " + e_deviceCode + ": Set acquisition frame rate fail! Ret=" + std::to_string(nRet));
+		log_error("Camera " + e_deviceCode + ": Set acquisition frame rate fail! Ret=" + std::to_string(nRet));
 		return false;
 	}
 	m_acquisitionFrameRate = acquisitionFrameRate;
-	log_info("Camera code: " + e_deviceCode + ": Set acquisition frame rate success!");
+	log_info("Camera " + e_deviceCode + ": Set acquisition frame rate success!");
 	// 设置曝光增益
 	nRet = MV_CC_SetFloatValue(m_handle, "Gain", gain);
 	if (nRet != MV_OK) {
-		log_error("Camera code: " + e_deviceCode + ": Set gain fail! Ret=" + std::to_string(nRet));
-		printf("Set Gain fail! nRet [0x%x]\n", nRet);
+		log_error("Camera " + e_deviceCode + ": Set gain fail! Ret=" + std::to_string(nRet));
 		return false;
 	}
 	m_gain = gain;
@@ -272,7 +272,7 @@ bool Camera::SetValuesForInited(
 
 	// 拍照间隔
 	m_cameraInterval = cameraInterval;
-	log_info("Camera code: " + e_deviceCode + ": Success set camera config parameter");
+	log_info("Camera " + e_deviceCode + ": Success set camera config parameter");
 	return true;
 }
 
@@ -388,21 +388,14 @@ bool Camera::GetImage(const std::string& path, void* args) {
 	msg.sampleTime = milliseconds;
 
 	for (int i = 0; i < m_acquisitionBurstFrameCount; ++i) {
-		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
+		log_info("Camera " + e_deviceCode + ": Frame " + std::to_string(i) + " start!");
 		MV_FRAME_OUT stOutFrame = { 0 };
 
 		int nRet = MV_CC_GetImageBuffer(m_handle, &stOutFrame, 1000);
 		if (nRet != MV_OK) {
-			wchar_t buffer[256];
-			swprintf(buffer, 256, L"Get Image Buffer fail! nRet [0x%x]\n", nRet);
-			//MessageBox(NULL, buffer, L"CameraError", MB_OK);
-			printf("Get Image Buffer fail! nRet [0x%x]\n", nRet);
-			log_error("Camera code: " + e_deviceCode + ": Get image buffer failed! " + "Ret=" + std::to_string(nRet));
+			log_error("Camera " + e_deviceCode + ": Get image buffer failed! " + "Ret=" + std::to_string(nRet));
 			return false;
 		}
-
-		printf("Get Image Buffer: Width[%d], Height[%d], FrameNum[%d]\n",
-			stOutFrame.stFrameInfo.nWidth, stOutFrame.stFrameInfo.nHeight, stOutFrame.stFrameInfo.nFrameNum);
 
 		// 转化图片格式为jpeg并保存在内存中,原始图片数据可能有14MB
 		MV_SAVE_IMAGE_PARAM_EX3 to_jpeg;
@@ -421,10 +414,9 @@ bool Camera::GetImage(const std::string& path, void* args) {
 
 		nRet = MV_CC_SaveImageEx3(m_handle, &to_jpeg);
 		if (nRet != MV_OK) {
-			printf("MV_CC_SaveImageEx3 fail! nRet [0x%x]\n", nRet);
 			delete[] to_jpeg.pImageBuffer; // 释放
 			MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
-			log_error("Camera code: " + e_deviceCode + ": translate image format to jpeg failed! " + "Ret=" + std::to_string(nRet));
+			log_error("Camera " + e_deviceCode + ": translate image format to jpeg failed! " + "Ret=" + std::to_string(nRet));
 			return false;
 		}
 
@@ -454,11 +446,10 @@ bool Camera::GetImage(const std::string& path, void* args) {
 		// 释放
 		nRet = MV_CC_FreeImageBuffer(m_handle, &stOutFrame);
 		if (nRet != MV_OK) {
-			printf("Free Image Buffer fail! nRet [0x%x]\n", nRet);
-			log_error("Camera code: " + e_deviceCode + ": Free image buffer failed! " + "Ret=" + std::to_string(nRet));
+			log_error("Camera " + e_deviceCode + ": Free image buffer failed! " + "Ret=" + std::to_string(nRet));
 		}
 
-		log_info("Camera code: " + e_deviceCode + ": Frame " + std::to_string(i) + " end!");
+		log_info("Camera " + e_deviceCode + ": Frame " + std::to_string(i) + " end!");
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(m_cameraInterval));
 	}

@@ -40,8 +40,10 @@ HANDLE hMainWork[8]; // 当前线程句柄
 std::list<HANDLE> allMainWorkHandles; // 所有线程句柄
 int remoteCtrlPin;
 
-std::string baseUrl = "http://192.168.0.189:9003/api/client";
 std::string pipelineCode = "CX202309141454000002"; // 一台工控机只跑一个 pipeline
+std::string serverIp = "192.168.0.189";
+int serverPort = 9003;
+int stopFlagPin = 1;
 std::string pipelineName;
 
 HINSTANCE hInst;                                // 当前实例
@@ -57,7 +59,6 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 // 线程函数
-DWORD __stdcall CheckAndClearLog(LPVOID lpParam);
 DWORD __stdcall MainWorkThread(LPVOID lpParam);
 DWORD __stdcall UnitWorkThread(LPVOID lpParam);
 
@@ -275,7 +276,7 @@ void GpioMsgProc(struct gpioMsg& msg)
 	switch (message)
 	{
 	case WM_GPIO_ON:
-		log_info("Gpio " + std::to_string(gpioPin) + " triggered!");
+		log_info("Gpio " + std::to_string(gpioPin) + " triggered on!");
 		TriggerOn(gpioPin);
 		break;
 	case WM_GPIO_OFF:
@@ -323,7 +324,7 @@ DWORD HttpServer(LPVOID lpParam)
 		//		std::string pipeconfig = jsonobj["data"];
 		//		nlohmann::json jsonobj1 = nlohmann::json::parse(pipeconfig);
 		nlohmann::json& jsonobj1 = jsonobj["data"];
-		auto map = GetConfig(jsonobj1);
+		auto map = ParsePipelineConfig(jsonobj1);
 		std::unique_lock<std::mutex> lock(map_mutex);
 		productMap = map;
 		lock.unlock();
@@ -352,7 +353,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	DWORD dirLen = GetCurrentDirectoryA(0, NULL);
 	projDir.reserve(dirLen);
 	GetCurrentDirectoryA(dirLen, &projDir[0]);
-	HANDLE hClearLog = CreateThread(NULL, 0, CheckAndClearLog, NULL, 0, NULL);
 
 	std::string logPath = projDir.c_str();
 	logPath.append("\\logs\\rotating.txt");
@@ -373,9 +373,23 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	HANDLE hHttpPost1 = CreateThread(NULL, 0, HttpPostThread, NULL, 0, NULL);
 	HANDLE hGpioProc = CreateThread(NULL, 0, GpioMessageProcThread, NULL, 0, NULL);
 	HANDLE hHttpServer = CreateThread(NULL, 0, HttpServer, NULL, 0, NULL);
-	StartSelfTesting();
+
+	bool parseResult = ParseBasicConfig();
+	if (false == parseResult) {
+		log_error("Invalid basic configuration!");
+		log_finish();
+		return -1;
+	}
+
+	bool testResult = StartDeviceSelfTesting();
+	if (false == testResult) {
+		log_error("Device self testing failed!");
+		log_finish();
+		return -1;
+	}
+
 	for (int i = 0; i < 3; i++) {
-		bool result = GetPipeLineConfigFile();
+		bool result = FetchPipeLineConfigFile();
 		if (true == result) {
 			break;
 		}
@@ -384,10 +398,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	nlohmann::json jsonObj = ReadPipelineConfig();
 	if (nullptr == jsonObj) {
 		log_error("Invalid pipeline configuration!");
+		log_finish();
 		return -1;
 	}
 
-	auto map = GetConfig(jsonObj);
+	auto map = ParsePipelineConfig(jsonObj);
 	std::unique_lock<std::mutex> lock(map_mutex);
 	productMap = map;
 	lock.unlock();
@@ -518,7 +533,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //			GetConfig(hWnd);
 			break;
 		case ID_CHECKUNIT:
-			PrintDevices();
 			break;
 		case ID_GETPRODUCT:
 			break;
@@ -580,348 +594,282 @@ void AppendLog(LPCWSTR text) {
 	SendMessage(hEdit, EM_REPLACESEL, 0, (LPARAM)text);
 }
 
-DWORD __stdcall CheckAndClearLog(LPVOID lpParam) {
-	const int max_chars = 6000;
-
-	while (true) {
-		//Get the length of the text in edit control
-		int textLength = GetWindowTextLength(hEdit);
-
-		if (textLength > max_chars) {
-			SetWindowText(hEdit, TEXT(""));
-		}
-
-		std::this_thread::sleep_for(std::chrono::seconds(5));
+bool ParseBasicConfig()
+{
+	HWND hWnd = FindWindow(NULL, szTitle);
+	std::string configfile = projDir.c_str();
+	configfile.append("\\basicconfig\\basicConfig.json");
+	std::ifstream jsonFile(configfile);
+	if (!jsonFile.is_open()) {
+		log_error("Open basic configuration file failed!");
+		return false;
 	}
 
-	return 0;
+	// 解析 json
+	jsonFile.seekg(0);
+	nlohmann::json jsonObj;
+	try {
+		jsonFile >> jsonObj;
+		jsonFile.close();
+		pipelineCode = jsonObj["pipelineCode"];
+		serverPort = jsonObj["serverPort"];
+		serverIp = jsonObj["serverIp"];
+		stopFlagPin = jsonObj["stopFlagPin"];
+		nlohmann::json deviceConfigList = jsonObj["deviceConfigList"];
+		for (const auto& deviceConfig : deviceConfigList) {
+			std::string sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName;
+			if (deviceConfig.contains("deviceTypeId")) {
+				sdeviceTypeId = deviceConfig["deviceTypeId"];
+			}
+			if (deviceConfig.contains("deviceTypeName")) {
+				sdeviceTypeName = deviceConfig["deviceTypeName"];
+			}
+			if (deviceConfig.contains("deviceName")) {
+				sdeviceName = deviceConfig["deviceName"];
+			}
+			sdeviceTypeCode = deviceConfig["deviceTypeCode"];
+			sdeviceCode = deviceConfig["deviceCode"];
+			switch (deviceTypeCodemap[sdeviceTypeCode]) {
+				case 0: { //GPIO设备
+					std::string sbios = deviceConfig["bios_id"];
+					const char* cbioa = sbios.data();
+					char* pbios = new char[std::strlen(cbioa) + 1];
+					std::strcpy(pbios, cbioa);
+
+					if (deviceMap.find(sdeviceCode) == deviceMap.end()) {
+						GPIO* deviceGPIO = new GPIO(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName, hWnd, pbios, 8, WM_GPIOBASEMSG);
+						deviceMap.insert(std::make_pair(sdeviceCode, deviceGPIO));
+					}
+					else {
+						GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find(sdeviceCode)->second);
+						deviceGPIO->SetGpioParam(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceName, hWnd, pbios, 8, WM_GPIOBASEMSG);
+					}
+					break;
+				}
+
+				case 1: { //光电开关
+					GPIO* deviceGPIO = NULL;
+					int pin;
+					if (deviceConfig.contains("deviceParamConfigList")) {
+						auto deviceParamConfigList = deviceConfig["deviceParamConfigList"];
+
+						for (auto deviceParamConfig : deviceParamConfigList) {
+							switch (lightParammap[deviceParamConfig["paramCode"]]) {
+							case 0://延迟开始工作时间（ms）
+								break;
+							case 1: {//扫码枪编码
+								std::string linkedScanningGun = deviceParamConfig["paramValue"];
+								if (triggerMaps.find(pin) == triggerMaps.end()) {
+									//如果triggerMap对应pin脚未绑定，创建vlinkedScanningGun的vector，并插入triggerMaps
+									std::vector<std::string> vlinkedScanningGun;
+									vlinkedScanningGun.push_back(linkedScanningGun);
+									triggerMaps.insert(std::make_pair(pin, vlinkedScanningGun));
+								}
+								else {
+									//如果triggerMap中已经存在已绑定的码枪vector，在vector中增加一个
+									triggerMaps.find(pin)->second.push_back(linkedScanningGun);
+								}
+								break;
+							}
+							case 2://pin脚 TODO: 最先处理
+								pin = std::stoi((std::string)deviceParamConfig["paramValue"]);
+								break;
+							case 3: {//GPIO设备号*/
+								std::string GPIODeviceCode = deviceParamConfig["paramValue"];
+								if (deviceMap.find(GPIODeviceCode) == deviceMap.end()) {
+									deviceGPIO = new GPIO(GPIODeviceCode);
+									deviceMap.insert(std::make_pair(GPIODeviceCode, deviceGPIO));
+									deviceGPIO->RegistDevice(pin, hWnd);
+								}
+								else {
+									deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find(GPIODeviceCode)->second);
+									deviceGPIO->RegistDevice(pin, hWnd);
+								}
+								break;
+							}
+							default:
+								break;
+							}
+						}
+					}
+
+					std::string codereaderID = "";
+					peSwitch* lSwitch = new peSwitch(pin, WM_GPIOBASEMSG, codereaderID, true, deviceGPIO, hWnd, sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
+					deviceMap.insert(std::make_pair(sdeviceCode, lSwitch));
+					break;
+				}
+				case 2: { //摄像机
+					std::string ipAddr = deviceConfig["ipAddr"];
+					Camera* cdevice = new Camera(ipAddr, sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
+					if (deviceConfig.contains("deviceParamConfigList")) {
+						cdevice->SetValuesByJson(deviceConfig["deviceParamConfigList"]);
+					}
+					deviceMap.insert(std::make_pair(sdeviceCode, cdevice));
+					break;
+				}
+				case 3: { //扫码枪
+					std::string ipAddr = deviceConfig["ipAddr"];
+					CodeReader* cddevice = new CodeReader(ipAddr, sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
+					if (deviceConfig.contains("deviceParamConfigList")) {
+						cddevice->SetValuesByJson(deviceConfig["deviceParamConfigList"]);
+					}
+					deviceMap.insert(std::make_pair(sdeviceCode, cddevice));
+					break;
+				}
+				case 4: { //音频设备
+					AudioEquipment* audioDevice = new AudioEquipment(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
+					deviceMap.insert(std::make_pair(sdeviceCode, audioDevice));
+					break;
+				}
+				case 5: { //遥控器
+					std::string portName = "COM3";
+					int baudRate = 38400;
+					std::string message = "FF 16 06 16 00 32 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 AD 84";
+					int devicePin = 0;
+					if (deviceConfig.contains("deviceParamConfigList")) {
+						auto deviceParamConfigList = deviceConfig["deviceParamConfigList"];
+						for (auto deviceParamConfig : deviceParamConfigList) {
+							switch (RemoteControlParammap[deviceParamConfig["paramCode"]]) {
+							case 0:
+								// devicelatency
+								break;
+							case 1:
+								// baudRate
+								baudRate = std::stoi((std::string)deviceParamConfig["paramValue"]);
+								break;
+							case 2:
+								portName = deviceParamConfig["paramValue"];
+								break;
+							case 3:
+								message = deviceParamConfig["paramValue"];
+								break;
+							case 4:
+								devicePin = remoteCtrlPin = std::stoi((std::string)deviceParamConfig["paramValue"]);
+							default:
+								break;
+							}
+						}
+
+					}
+					SerialCommunication* scDevice = new SerialCommunication(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName, portName, baudRate, message, devicePin);
+					deviceMap.insert(std::make_pair(sdeviceCode, scDevice));
+					break;
+				}
+				case 6: { //音频设备
+					AudioEquipment* audioDevice = new AudioEquipment(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
+					deviceMap.insert(std::make_pair(sdeviceCode, audioDevice));
+					break;
+				}
+				default:
+				    break;
+			}
+		}
+	}
+	catch (const nlohmann::json::parse_error& e) {
+		std::string errinfo = "Exception occur while parse basic config!, exception msg:";
+		errinfo.append(e.what());
+		log_error(errinfo);
+		return false;
+	}
+
+	return true;
 }
 
 // 各个按钮对应的函数
-void StartSelfTesting(/*HWND hWnd*/) {
-	HWND hWnd = FindWindow(NULL, szTitle);
-	HMENU hMenu = GetMenu(hWnd);
-	if (f_SELFTESTING == false) {
-		CheckMenuItem(hMenu, ID_SELFTESTING, MF_CHECKED); // 打勾
-		f_SELFTESTING = true;
-		AppendLog(_T("开始自检\n"));
-		if (!DeviceConfigued) {
-			AppendLog(_T("开始设备基础信息读取和初始化\n"));
-			DeviceConfigued = true;
-
-			std::string deviceConfigPath = projDir.c_str();
-			deviceConfigPath.append("\\basicdeviceconfig\\deviceconfiglist.json");
-			std::ifstream jsonFile(deviceConfigPath); // todo: 文件路径可配置
-			if (!jsonFile.is_open()) {
-				AppendLog(_T("Json File is not opened!\n"));
-				return;
+bool StartDeviceSelfTesting() {
+	int testCount = 0;
+	for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
+		switch (deviceTypeCodemap[it->second->getDeviceTypeCode()]) {
+		case 0: {//GPIO
+			GPIO* deviceGPIO = dynamic_cast<GPIO*>(it->second);
+			if (deviceGPIO->Init() && deviceGPIO->StartThread()) {
+				log_info("GPIO "  + deviceGPIO->getDeviceCode() + " self test successed!");
+				testCount++;
 			}
-			jsonFile.seekg(0); // 回到起始位
-			nlohmann::json jsonObj;
-			try {
-				jsonFile >> jsonObj;
-				AppendLog(_T("Open Json File success!\n"));
-				nlohmann::json deviceConfigList = jsonObj["deviceConfigList"];
-				for (const auto& deviceConfig : deviceConfigList) {
-					//AppendLog(StringToWstring(deviceConfig.dump()).c_str());
-					//AppendLog(_T("\n"));
-					std::string sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName;
-					if (deviceConfig.contains("deviceTypeId")) {
-						sdeviceTypeId = deviceConfig["deviceTypeId"];
-					}
-					if (deviceConfig.contains("deviceTypeName")) {
-						sdeviceTypeName = deviceConfig["deviceTypeName"];
-					}
-					if (deviceConfig.contains("deviceTypeCode")) {
-						sdeviceTypeCode = deviceConfig["deviceTypeCode"];
-					}
-					if (deviceConfig.contains("deviceCode")) {
-						sdeviceCode = deviceConfig["deviceCode"];
-					}
-					if (deviceConfig.contains("deviceName")) {
-						sdeviceName = deviceConfig["deviceName"];
-					}
-					if (deviceConfig.contains("deviceTypeCode")) {
-						switch (deviceTypeCodemap[deviceConfig["deviceTypeCode"]]) {
-						case 0: { //GPIO设备
-							std::string sbios = deviceConfig["bios_id"];
-							const char* cbioa = sbios.data();
-							char* pbios = new char[std::strlen(cbioa) + 1];
-							std::strcpy(pbios, cbioa);
-
-							if (deviceMap.find(sdeviceCode) == deviceMap.end()) {
-								GPIO* deviceGPIO = new GPIO(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName, hWnd, pbios, 8, WM_GPIOBASEMSG);
-								deviceMap.insert(std::make_pair(sdeviceCode, deviceGPIO));
-							}
-							else {
-								GPIO* deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find(sdeviceCode)->second);
-								deviceGPIO->SetGpioParam(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceName, hWnd, pbios, 8, WM_GPIOBASEMSG);
-							}
-
-							AppendLog(_T("初始化GPIO设备信息完成！\n"));
-						}
-							  break;
-							  //peSwitch(int gpioPin,UINT BaseMsg, std::string l_codereaderID, BOOLEAN istrigger, GPIO* gpio, HWND whandle,
-							  //std::string deviceTypeId, std::string deviceTypeName, std::string deviceTypeCode, std::string deviceCode, std::string deviceName) :
-							  //equnit(deviceTypeId, deviceTypeName, deviceTypeCode, deviceCode, deviceName),
-							  //    pin(gpioPin), peBaseMsg(BaseMsg), codereaderID(l_codereaderID), b_istrigger(istrigger), gpUnit(gpio), hwnd(whandle)
-						case 1: { //光电开关
-							GPIO* deviceGPIO = NULL;
-							int pin;
-							if (deviceConfig.contains("deviceParamConfigList")) {
-								auto deviceParamConfigList = deviceConfig["deviceParamConfigList"];
-
-								for (auto deviceParamConfig : deviceParamConfigList) {
-									switch (lightParammap[deviceParamConfig["paramCode"]]) {
-									case 0://延迟开始工作时间（ms）
-										break;
-									case 1: {//扫码枪编码
-										std::string linkedScanningGun = deviceParamConfig["paramValue"];
-
-										//triggerMap.insert(std::make_pair(pin, linkedScanningGun));
-
-										if (triggerMaps.find(pin) == triggerMaps.end()) {
-											//如果triggerMap对应pin脚未绑定，创建vlinkedScanningGun的vector，并插入triggerMaps
-											std::vector<std::string> vlinkedScanningGun;
-											vlinkedScanningGun.push_back(linkedScanningGun);
-											triggerMaps.insert(std::make_pair(pin, vlinkedScanningGun));
-										}
-										else {
-											//如果triggerMap中已经存在已绑定的码枪vector，在vector中增加一个
-											triggerMaps.find(pin)->second.push_back(linkedScanningGun);
-										}
-										break;
-									}
-									case 2://pin脚 TODO: 最先处理
-										pin = std::stoi((std::string)deviceParamConfig["paramValue"]);
-										AppendLog(std::to_wstring(pin).c_str());
-										break;
-									case 3: {//GPIO设备号*/
-										std::string GPIODeviceCode = deviceParamConfig["paramValue"];
-										if (deviceMap.find(GPIODeviceCode) == deviceMap.end()) {
-											deviceGPIO = new GPIO(GPIODeviceCode);
-											deviceMap.insert(std::make_pair(GPIODeviceCode, deviceGPIO));
-											deviceGPIO->RegistDevice(pin, hWnd);
-										}
-										else {
-											deviceGPIO = dynamic_cast<GPIO*>(deviceMap.find(GPIODeviceCode)->second);
-											deviceGPIO->RegistDevice(pin, hWnd);
-										}
-										break;
-									}
-									default:
-										AppendLog(_T("警告：初始化设备信息存在未知参数！\n"));
-										break;
-									}
-								}
-							}
-
-							std::string codereaderID = "";
-							peSwitch* lSwitch = new peSwitch(pin, WM_GPIOBASEMSG, codereaderID, true, deviceGPIO, hWnd, sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
-							deviceMap.insert(std::make_pair(sdeviceCode, lSwitch));
-							AppendLog(_T("初始化光电开关信息完成！\n"));
-						}
-							  break;
-						case 2: { //摄像机
-							std::string ipAddr = deviceConfig["ipAddr"];
-							Camera* cdevice = new Camera(ipAddr, sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
-							if (deviceConfig.contains("deviceParamConfigList")) {
-								cdevice->SetValuesByJson(deviceConfig["deviceParamConfigList"]);
-							}
-							deviceMap.insert(std::make_pair(sdeviceCode, cdevice));
-							AppendLog(_T("初始化相机信息完成！\n"));
-							break;
-						}
-						case 3: { //扫码枪
-							std::string ipAddr = deviceConfig["ipAddr"];
-							CodeReader* cddevice = new CodeReader(ipAddr, sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
-							if (deviceConfig.contains("deviceParamConfigList")) {
-								cddevice->SetValuesByJson(deviceConfig["deviceParamConfigList"]);
-							}
-							deviceMap.insert(std::make_pair(sdeviceCode, cddevice));
-							AppendLog(_T("初始化读码器信息完成！\n"));
-							break;
-						}
-						case 4: { //音频设备
-							AudioEquipment* audioDevice = new AudioEquipment(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
-							deviceMap.insert(std::make_pair(sdeviceCode, audioDevice));
-							AppendLog(_T("初始化音频设备信息完成！\n"));
-							break;
-						}
-						case 5: { //遥控器
-							std::string portName = "COM3";
-							int baudRate = 38400;
-							std::string message = "FF 16 06 16 00 32 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 80 00 00 00 0B 7B B7 00 40 00 00 00 00 F7 A6 EA 00 00 C0 20 00 80 00 00 00 00 0B FB B7 00 40 00 00 00 00 F7 AD 84";
-							int devicePin = 0;
-							if (deviceConfig.contains("deviceParamConfigList")) {
-								auto deviceParamConfigList = deviceConfig["deviceParamConfigList"];
-								for (auto deviceParamConfig : deviceParamConfigList) {
-									switch (RemoteControlParammap[deviceParamConfig["paramCode"]]) {
-									case 0:
-										// devicelatency
-										break;
-									case 1:
-										// baudRate
-										baudRate = std::stoi((std::string)deviceParamConfig["paramValue"]);
-										break;
-									case 2:
-										portName = deviceParamConfig["paramValue"];
-										break;
-									case 3:
-										message = deviceParamConfig["paramValue"];
-										break;
-									case 4:
-										devicePin = remoteCtrlPin = std::stoi((std::string)deviceParamConfig["paramValue"]);
-									default:
-										AppendLog(_T("警告：初始化设备信息存在未知参数！\n"));
-										break;
-									}
-								}
-
-							}
-							SerialCommunication* scDevice = new SerialCommunication(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName, portName, baudRate, message, devicePin);
-							deviceMap.insert(std::make_pair(sdeviceCode, scDevice));
-							AppendLog(_T("初始化遥控器信息完成！\n"));
-							break;
-						}
-						case 6: { //音频设备
-							AudioEquipment* audioDevice = new AudioEquipment(sdeviceTypeId, sdeviceTypeName, sdeviceTypeCode, sdeviceCode, sdeviceName);
-							deviceMap.insert(std::make_pair(sdeviceCode, audioDevice));
-							AppendLog(_T("初始化音频设备信息完成！\n"));
-							break;
-						}
-						default:
-							AppendLog(_T("警告：初始化设备信息存在未知设备！\n"));
-							break;
-						}
-					}
-				}
+			else {
+				log_error("GPIO " + deviceGPIO->getDeviceCode() + " self test failed!");
 			}
-			catch (const nlohmann::json::parse_error& e) {
-				AppendLog(StringToLPCWSTR(e.what()));
-				f_SELFTESTING = false;
-				CheckMenuItem(hMenu, ID_SELFTESTING, MF_UNCHECKED);
-				return;
-			}
-			DeviceConfigued = true;
+			break;
 		}
-		else {
-			AppendLog(_T("检测线设备配置已获取完毕！"));
+		case 1: //光电开关自检默认通过
+			log_info("Light switch self test successed!");
+			testCount++;
+			break;
+		case 2: {//摄像机开关
+			Camera* deviceCamera = dynamic_cast<Camera*>(it->second);
+			if (deviceCamera->GetCameraByIpAddress() && deviceCamera->Init()) {
+				deviceCamera->StartGrabbing();
+				deviceCamera->GetImageX();
+				log_info("Camera " + deviceCamera->getDeviceCode() + " self test successed!");
+				testCount++;
+			}
+			else {
+				log_error("Camera " + deviceCamera->getDeviceCode() + " self test failed!");
+			}
+			break;
 		}
-
-		// 开始自检，启动设备；自检过程只打开GPIO，不会涉及peSwitch
-		// todo: 优先初始化GPIO
-		AppendLog(_T("开始自检\n"));
-		int testflag = 0;
-		for (auto it = deviceMap.begin(); it != deviceMap.end(); ++it) {
-			switch (deviceTypeCodemap[it->second->e_deviceTypeCode]) {
-			case 0: {//GPIO
-				GPIO* deviceGPIO = dynamic_cast<GPIO*>(it->second);
-				if (deviceGPIO->Init() && deviceGPIO->StartThread()) {
-					AppendLog(_T("GPIO 自检通过 \n"));
-					testflag++;
-				}
-				else {
-					AppendLog(_T("GPIO 自检失败 \n"));
-				}
-				break;
+		case 3: {//码枪
+			CodeReader* deviceCodeReader = dynamic_cast<CodeReader*>(it->second);
+			if (deviceCodeReader->GetCodeReaderByIpAddress() && deviceCodeReader->Init()) {
+				deviceCodeReader->StartGrabbing();
+				log_info("Code Reader " + deviceCodeReader->getDeviceCode() + " self test successed!");
+				testCount++;
 			}
-			case 1://光电开关跳过
-				AppendLog(_T("光电开关 自检跳过 \n"));
-				testflag++;
-				break;
-			case 2: {//摄像机开关
-				Camera* deviceCamera = dynamic_cast<Camera*>(it->second);
-				if (deviceCamera->GetCameraByIpAddress() && deviceCamera->Init()) {
-					deviceCamera->StartGrabbing();
-					deviceCamera->GetImageX();
-					testflag++;
-				}
-				else {
-					std::string logStr = "Camera " + it->first + " selftest error!\n";
-					AppendLog(StringToLPCWSTR(logStr));
-				}
-				break;
+			else {
+				log_error("Code Reader " + deviceCodeReader->getDeviceCode() + " self test failed!");
 			}
-			case 3: {//码枪
-				CodeReader* deviceCodeReader = dynamic_cast<CodeReader*>(it->second);
-				if (deviceCodeReader->GetCodeReaderByIpAddress() && deviceCodeReader->Init()) {
-					deviceCodeReader->StartGrabbing();
-					testflag++;
-				}
-				else {
-					std::string logStr = "CodeReader " + it->first + " selftest error!\n";
-					AppendLog(StringToLPCWSTR(logStr));
-				}
-				break;
-			}
-			case 4: { // 音频
-				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
+			break;
+		}
+		case 4: { //扬声器speaker
+			AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
 				
-				std::string soundFilePath = projDir.c_str();
-				soundFilePath.append("\\sounds\\");
-				audioDevice->ReadFile(soundFilePath);
+			std::string soundFilePath = projDir.c_str();
+			soundFilePath.append("\\sounds\\");
+			audioDevice->ReadFile(soundFilePath);
 
-				//int ret = audioDevice->Init(soundFile); // todo: 解决未找到音频设备时抛出异常的问题
-
-				testflag++; // todo: 加条件
-				break;
-			}
-			case 5: {
-				// 红外发射器
-				SerialCommunication* scDevice = dynamic_cast<SerialCommunication*>(it->second);
-				//if (scDevice->OpenSerial()) {
-				testflag++;
-				//}
-				//else {
-				//	std::string logStr = "Remote control " + it->first + " selftest error!\n";
-				//	AppendLog(StringToLPCWSTR(logStr));
-				//}
-				break;
-			}
-			case 6: {
-				AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
-				testflag++;
-				break;
-			}
-			default:
-				break;
-			}
+			//int ret = audioDevice->Init(soundFile); // todo: 解决未找到音频设备时抛出异常的问题
+			log_info("Speaker " + audioDevice->getDeviceCode() + " self test successed!");
+			testCount++; // todo: 加条件
+			break;
 		}
-		if (testflag == deviceMap.size()) {
-			AppendLog(_T("所有设备自检通过\n"));
+		case 5: { // 红外发射器
+			SerialCommunication* scDevice = dynamic_cast<SerialCommunication*>(it->second);
+			//if (scDevice->OpenSerial()) {
+			log_info("IR transmitter " + scDevice->getDeviceCode() + " self test successed!");
+			testCount++;
+			//}
+			//else {
+			//	std::string logStr = "Remote control " + it->first + " selftest error!\n";
+			//	AppendLog(StringToLPCWSTR(logStr));
+			//}
+			break;
 		}
-		else {
-			std::string logStr = std::to_string(deviceMap.size() - testflag) + " devices self test error, other deivces success!s\n";
-			AppendLog(StringToLPCWSTR(logStr));
+		case 6: {
+			AudioEquipment* audioDevice = dynamic_cast<AudioEquipment*>(it->second);
+			log_info("Speaker " + audioDevice->getDeviceCode() + " self test successed!");
+			testCount++;
+			break;
 		}
-		CheckMenuItem(hMenu, ID_SELFTESTING, MF_UNCHECKED);
-		f_SELFTESTING = false;
-	}
-	else {
-		if (true == f_SELFTESTING) {
-			CheckMenuItem(hMenu, ID_SELFTESTING, MF_UNCHECKED);
-			f_SELFTESTING = false;
-			AppendLog(_T("停止自检\n"));
+		default:
+			break;
 		}
 	}
-	return;
-}
 
-void PrintDevices() {
-	for (const auto& pair : deviceMap) {
-		std::string logStr = pair.first + ": " + pair.second->e_deviceName + "\n";
-		AppendLog(StringToLPCWSTR(logStr));
+	if (testCount != deviceMap.size()) {
+		return false;
 	}
+
+	return true;
 }
 
 // 处理得到 productMap
-bool GetPipeLineConfigFile() {
+bool FetchPipeLineConfigFile() {
 	// 调用 GetPipelineConfig.jar
 	std::string jarPath = projDir.c_str();
 	jarPath.append("\\GetPipelineConfig.jar");
 	std::string cfgDir = projDir.c_str();
 	cfgDir.append("\\productconfig\\");
+	std::string baseUrl = "http://" + serverIp + ":" + std::to_string(serverPort) + "/api/client";
 	std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + pipelineCode + " " + cfgDir + " " + "pipelineConfig.json";
 	std::system(command.c_str());
 
@@ -969,7 +917,7 @@ nlohmann::json ReadPipelineConfig() {
 	return jsonObj;
 }
 
-std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> GetConfig(nlohmann::json& jsonObj) {
+std::shared_ptr<std::unordered_map<std::string, std::shared_ptr<Product>>> ParsePipelineConfig(nlohmann::json& jsonObj) {
 	auto productMaps = std::make_shared<std::unordered_map<std::string, std::shared_ptr<Product>>>();
     try {
 		// 获取pipeline基本信息
@@ -1401,37 +1349,20 @@ DWORD __stdcall MainWorkThread(LPVOID lpParam) {
 	return 0;
 }
 
-//void TriggerOn(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-//	int gpioPin = static_cast<int>(lParam);
-//	std::string triggerLog = "TriggerOn: wParam = " + std::to_string(static_cast<int>(wParam))
-//		+ ", lParam = " + std::to_string(gpioPin) + "\n";
-//	AppendLog(StringToLPCWSTR(triggerLog));
-
 void TriggerOn(UINT gpioPin)
 {
-	std::string triggerLog = "TriggerOn: gpioPin = " + std::to_string(gpioPin) + "\n";
-	AppendLog(StringToLPCWSTR(triggerLog));
-
 	if (!f_QATESTING) {
-		AppendLog(_T("f_QATESTING is false!\n"));//pin 脚触发
 		return;
 	}
 
 	// 1. triggerMap 把引脚和扫码枪对应
 	// 2. 根据扫码枪扫到的码，确定产品
 	// 3. 根据产品确定执行的 process
-	std::string loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + " before try lock\n";
-	AppendLog(StringToLPCWSTR(loglockStr));
 	if (!mtx[gpioPin].try_lock()) {
-		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "  try lock fail\n";
-		AppendLog(StringToLPCWSTR(loglockStr));
 		return;
 	}
-	loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "   locked \n";
-	AppendLog(StringToLPCWSTR(loglockStr));
+
 	if (isPinTriggered[gpioPin]) {
-		std::string logStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + " try trigger error\n";
-		AppendLog(StringToLPCWSTR(logStr));
 		mtx[gpioPin].unlock();
 		return;
 	}
@@ -1442,17 +1373,11 @@ void TriggerOn(UINT gpioPin)
 }
 
 DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
-	//DWORD tid = GetCurrentThreadId();
-	//std::string logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " start!\n";
-	//AppendLog(StringToLPCWSTR(logStr));
 	struct UnitWorkPara *param = static_cast<struct UnitWorkPara *>(lpParam);
 	ProcessUnit* unit = param->procUnit;
 	bool sameProductSn = param->sameProductSnCode;
 	delete(param);
 	std::string path = projDir.c_str();
-
-	std::string logStr = "device type: " + unit->deviceTypeCode + " ,device code: " + unit->deviceCode + " called!\n";
-	AppendLog(StringToLPCWSTR(logStr));
 
 	switch (deviceTypeCodemap[unit->deviceTypeCode]) {
 	case 2: { // Camera
@@ -1469,7 +1394,7 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 	}
 	case 3: { // ScanningGun
 		CodeReader* deviceCR = dynamic_cast<CodeReader*>(unit->eq);
-		log_info("Scan coder " + deviceCR->e_deviceCode + " be called!");
+		log_info("Scancoder " + deviceCR->e_deviceCode + " be called!");
 
 		deviceCR->Lock();
 		if (sameProductSn == FALSE)
@@ -1618,158 +1543,19 @@ DWORD __stdcall UnitWorkThread(LPVOID lpParam) {
 		break;
 	}
 
-	//logStr = std::to_string(__LINE__) + ",tid " + std::to_string(tid) + " end!\n";
-	//AppendLog(StringToLPCWSTR(logStr));
 	return 0;
 }
 
-//void TriggerOff(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-//	int gpioPin = static_cast<int>(lParam);
-//	std::string triggerLog = "TriggerOff: wParam = " + std::to_string(static_cast<int>(wParam))
-//		+ ", lParam = " + std::to_string(gpioPin) + "\n";
-//	AppendLog(StringToLPCWSTR(triggerLog));
-
 void TriggerOff(UINT gpioPin)
 {
-    std::string triggerLog = "TriggerOff: gpioPin = " + std::to_string(gpioPin) + "\n";
-    AppendLog(StringToLPCWSTR(triggerLog));
-
 	if (!f_QATESTING) {
-		AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
 		isPinTriggered[gpioPin] = false; // todo: check
 		return;
 	}
 
-	AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-	std::string loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + " before try lock\n";
-	AppendLog(StringToLPCWSTR(loglockStr));
-	if (mtx[gpioPin].try_lock()) {
-		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "  try lock success unlock\n";
-		AppendLog(StringToLPCWSTR(loglockStr));
-		mtx[gpioPin].unlock();
-		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "  unlock\n";
-		AppendLog(StringToLPCWSTR(loglockStr));
-		isPinTriggered[gpioPin] = false;
-		return;
-	}
-	else {
-		mtx[gpioPin].unlock();
-		isPinTriggered[gpioPin] = false;
-		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "  unlock\n";
-		AppendLog(StringToLPCWSTR(loglockStr));
-	}
-
-	/*if (hMainWork[gpioPin] == nullptr) {
-		AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
-		isPinTriggered[gpioPin] = false;
-		return;
-	}*/
-
-	//AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
-	//HANDLE handle = hMainWork[gpioPin];
-	//hMainWork[gpioPin] = nullptr;
-	//allMainWorkHandles.remove(handle);
-
-	//std::string logString = std::to_string(__LINE__) + ", trigger off, handle count: " + std::to_string(allMainWorkHandles.size()) + "\n";
-	//AppendLog(StringToLPCWSTR(logString));
-
-
-	//BOOLEAN bflage = false;
-	//while (false== bflage) {
-	//	std::string loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + " before try lock\n";
-	//	AppendLog(StringToLPCWSTR(loglockStr));
-	//	if (mtx[gpioPin].try_lock()) {
-	//		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "   locked \n";
-	//		AppendLog(StringToLPCWSTR(loglockStr));
-	//		WaitForSingleObject(handle, INFINITE);
-	//		CloseHandle(handle);
-	//		mtx[gpioPin].unlock();
-	//		bflage = true;
-	//		loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "   unlocked \n";
-	//		AppendLog(StringToLPCWSTR(loglockStr));
-	//	}
-	//	else {
-	//		Sleep(50);
-	//	}
-	//	
-	//}
-	//loglockStr = std::to_string(__LINE__) + ", GPIO PIN " + std::to_string(gpioPin) + "   locked \n";
-	//AppendLog(StringToLPCWSTR(loglockStr));
-
-	//AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
-	//isPinTriggered[gpioPin] = false;
-
-	//AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n")); 
-
-	/*auto it = map2bTest.find(gpioPin);
-	if (it == map2bTest.end()) {
-		AppendLog(L"map2bTest find error\n");
-		isPinTriggered[gpioPin] = false;
-		return;
-	}
-
-	AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
-	product2btest* p2t = it->second;
-	if (p2t == nullptr) {
-		AppendLog(L"map2bTest[gpioPin] error\n");
-		isPinTriggered[gpioPin] = false;
-		return;
-	}
-
-	AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));
-
-	ProcessUnit* processUnitListHead = p2t->processUnitListHead;
-	p2t->processUnitListHead = nullptr;
+	mtx[gpioPin].try_lock();
+	mtx[gpioPin].unlock();
 	isPinTriggered[gpioPin] = false;
 
-	AppendLog(StringToLPCWSTR(std::to_string(__LINE__) + "\n"));*/
-
-	//SetPostFlag(processUnitListHead);
-}
-
-void SetPostFlag(ProcessUnit* processUnitListHead) {
-	ProcessUnit* curProcess = processUnitListHead->nextunit;
-	while (curProcess != nullptr && curProcess != processUnitListHead) {
-		std::string processPath = "D:\\AIQIforHaier";
-		//std::string tmpProductionSnModel = curProcess->productSnModel.replace(curProcess->productSnModel.begin(), curProcess->productSnModel.end(), "/", "_");
-		processPath += "\\" + pipelineCode + "\\" + curProcess->productSnModel + "\\" + curProcess->productSn + "\\" + curProcess->processesCode;
-		//processPath += "\\" + pipelineCode + "\\" + tmpProductionSnModel + "\\" + curProcess->productSn + "\\" + curProcess->processesCode;
-
-		std::string logPath = "D:\\AIQIforHaier";
-		logPath += "\\PostFiles.log";
-
-		//std::string command = "start /b java -jar " + jarPath + " " + baseUrl + " " + processPath + " requestArgs.json " + logPath;
-		//std::system(command.c_str());
-
-		auto now = std::chrono::high_resolution_clock::now();
-		auto duration = now.time_since_epoch();
-		auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
-
-		// 创建一个json对象
-		nlohmann::json reqJson;
-		reqJson["baseUrl"] = baseUrl;
-		reqJson["processPath"] = processPath;
-		reqJson["requestArgsFileName"] = "requestArgs.json";
-		reqJson["logPath"] = logPath;
-
-		// req json
-		std::string reqPath = "D:\\AIQIforHaier";
-		reqPath += "\\post\\req\\" + std::to_string(microseconds) + ".json";
-		std::ofstream o1(reqPath);
-		o1 << reqJson.dump(4) << std::endl;
-		o1.close();
-
-		// blank flag
-		std::string flagPath = "D:\\AIQIforHaier";
-		flagPath += "\\post\\flag\\" + std::to_string(microseconds);
-		std::ofstream o2(flagPath);
-		o2.close();
-
-		curProcess = curProcess->nextunit;
-	}
+	return;
 }

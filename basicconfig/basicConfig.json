@@ -1,4 +1,8 @@
 {
+	"pipelineCode": "CX202309141454000002",
+    "serverIp": "192.168.0.189",
+	"serverPort": 9003,
+	"stopFlagPin": 1,
     "deviceConfigList":[
         {
             "deviceTypeId":"1706875521972076547",
